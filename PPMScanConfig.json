@@ -1,0 +1,30 @@
+{
+  "millisecondsBetweenPageLoads": 2000,
+  "managerIdFrom": 2074400,
+  "managerIdTo": 2217290,
+  "managerIds": [],
+  "teamFilters": {
+  	"HOCKEY": {
+  		"minTeamStrengths": {
+  			"Total": 10
+  		}
+  	},
+  	"SOCCER": {
+  		"minTeamStrengths": {
+  			"Total": 10
+  		}
+  	},
+  	"HANDBALL": {
+  		"minTeamStrengths": {
+  			"Total": 10
+  		}
+  	}
+  },
+  "lastLoginDayDifferenceSumThreshold": 15,
+  "lastLoginDaysRecentlyActiveThreshold": 2,
+  "lastLoginCriteriaMatch": 1,
+  "ignoreListLastLoginMonthsThreshold": 24,
+  "sizeOfThreadPool": 9,
+  "chunkSize": 100,
+  "exportFormat": "EXCEL"
+}
