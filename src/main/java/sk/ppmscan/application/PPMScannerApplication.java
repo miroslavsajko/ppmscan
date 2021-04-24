@@ -4,16 +4,12 @@
 package sk.ppmscan.application;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.util.AbstractMap;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -31,15 +27,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.io.output.FileWriterWithEncoding;
-import org.apache.poi.common.usermodel.HyperlinkType;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Hyperlink;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.xssf.usermodel.XSSFCreationHelper;
-import org.apache.poi.xssf.usermodel.XSSFHyperlink;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.joda.time.Duration;
+import org.joda.time.format.PeriodFormatter;
+import org.joda.time.format.PeriodFormatterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,11 +46,13 @@ import sk.ppmscan.application.beans.Manager;
 import sk.ppmscan.application.beans.Sport;
 import sk.ppmscan.application.beans.Team;
 import sk.ppmscan.application.config.Configuration;
-import sk.ppmscan.application.config.ExportFormat;
 import sk.ppmscan.application.config.TeamFilterConfiguration;
+import sk.ppmscan.application.export.ExcelExporter;
+import sk.ppmscan.application.export.HtmlExporter;
+import sk.ppmscan.application.export.IExporter;
+import sk.ppmscan.application.export.JsonExporter;
 import sk.ppmscan.application.reader.ManagerReader;
 import sk.ppmscan.application.reader.TeamReader;
-import sk.ppmscan.application.util.LocalDateTimeJsonSerializer;
 import sk.ppmscan.application.util.PPMScannerThreadPoolExecutor;
 
 /**
@@ -123,7 +115,7 @@ public class PPMScannerApplication {
 
 		int sizeOfThreadPool = configuration.getSizeOfThreadPool();
 		LOGGER.info("{} threads will be used", sizeOfThreadPool);
-		long timeStampBefore = System.currentTimeMillis();
+		long timeStampBefore = Calendar.getInstance().getTimeInMillis();
 		ExecutorService executorService = new PPMScannerThreadPoolExecutor(sizeOfThreadPool, managerIds.size());
 
 		List<Callable<Entry<Long, Manager>>> tasks = new LinkedList<Callable<Entry<Long, Manager>>>();
@@ -166,7 +158,6 @@ public class PPMScannerApplication {
 			}
 
 			int ignoreListSizeBefore = ignoredManagerSet.size();
-//			List<Future<Entry<Long, Manager>>> futures = executorService.invokeAll(tasks);
 			executorService.invokeAll(tasks);
 			int ignoreListSizeAfter = ignoredManagerSet.size();
 
@@ -181,22 +172,31 @@ public class PPMScannerApplication {
 				LOGGER.info("Found {} teams in {}", filteredTeamEntry.getValue().size(), filteredTeamEntry.getKey());
 			}
 
-			if (ExportFormat.JSON.equals(configuration.getExportFormat())) {
-				this.exportToJsonFile(filteredTeams);
+			IExporter exporter;
+			switch (configuration.getExportFormat()) {
+			case EXCEL:
+				exporter = new ExcelExporter(this.now);
+				break;
+			case HTML:
+				exporter = new HtmlExporter(this.now);
+				break;
+			case JSON:
+			default:
+				exporter = new JsonExporter(this.now);
+				break;
 			}
-			if (ExportFormat.EXCEL.equals(configuration.getExportFormat())) {
-				this.exportToExcelFile(filteredTeams);
-			}
+			exporter.export(filteredTeams);
 
 			i += configuration.getChunkSize();
 		}
+		long timeStampAfter = Calendar.getInstance().getTimeInMillis();
+		Duration duration = new Duration(timeStampAfter - timeStampBefore);
 
-		long timeStampAfter = System.currentTimeMillis();
-		Duration duration = Duration.ofMillis(timeStampAfter - timeStampBefore);
-		long hours = duration.get(ChronoUnit.SECONDS) / 3600;
-		long minutes = (duration.get(ChronoUnit.SECONDS) - (hours * 3600)) / 60;
-		long seconds = (duration.get(ChronoUnit.SECONDS) - (hours * 3600) - (minutes * 60)) / 60;
-		LOGGER.info("The scanning took {}h {}m {}s", hours, minutes, seconds);
+		PeriodFormatter formatter = new PeriodFormatterBuilder().appendHours().appendSuffix("h ").appendMinutes()
+				.appendSuffix("m ").appendSeconds().appendSuffix("s").toFormatter();
+		String formatted = formatter.print(duration.toPeriod());
+
+		LOGGER.info("The scanning took: {}", formatted);
 
 		executorService.awaitTermination(5, TimeUnit.SECONDS);
 		LOGGER.info("{} tasks never finished because of termination", executorService.shutdownNow().size());
@@ -299,120 +299,6 @@ public class PPMScannerApplication {
 		jsonWriter.close();
 		LOGGER.info("Writing to the file was successful");
 
-	}
-
-	private void exportToExcelFile(Map<Sport, Set<Team>> filteredTeams) throws IOException {
-		XSSFWorkbook workbook = new XSSFWorkbook();
-
-		for (Entry<Sport, Set<Team>> filteredEntry : filteredTeams.entrySet()) {
-			writeOutputSportToExcelFile(workbook, filteredEntry.getKey(), filteredEntry.getValue());
-		}
-
-		DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder().append(DateTimeFormatter.ISO_DATE)
-				.appendLiteral("T").appendValue(ChronoField.HOUR_OF_DAY, 2).appendLiteral("-")
-				.appendValue(ChronoField.MINUTE_OF_HOUR, 2).appendLiteral("-")
-				.appendValue(ChronoField.SECOND_OF_MINUTE, 2).toFormatter();
-
-		String outputFilename = new StringBuilder().append("ppmInactiveManagers-")
-				.append(this.now.format(dateTimeFormatter)).append(".xlsx").toString();
-
-		LOGGER.info("Writing out the result to file {}", outputFilename);
-		File outputExcelFile = new File(outputFilename);
-		outputExcelFile.createNewFile();
-		FileOutputStream outputStream = new FileOutputStream(outputExcelFile);
-		workbook.write(outputStream);
-		workbook.close();
-		LOGGER.info("Writing to the file was successful");
-	}
-
-	private void writeOutputSportToExcelFile(XSSFWorkbook workbook, Sport sport, Set<Team> teams) {
-		XSSFSheet sheet = workbook.createSheet(sport.toString());
-		XSSFCreationHelper creationHelper = workbook.getCreationHelper();
-
-		int rowIndex = 0;
-		int columnIndex = 0;
-
-		Row firstRow = sheet.createRow(rowIndex++);
-		firstRow.createCell(columnIndex).setCellValue("Nickname");
-		sheet.setColumnWidth(columnIndex++, 5000);
-		firstRow.createCell(columnIndex).setCellValue("Manager URL");
-		sheet.setColumnWidth(columnIndex++, 3000);
-
-		firstRow.createCell(columnIndex).setCellValue("Team Name");
-		sheet.setColumnWidth(columnIndex++, 5000);
-		firstRow.createCell(columnIndex).setCellValue("League");
-		sheet.setColumnWidth(columnIndex++, 5000);
-		firstRow.createCell(columnIndex).setCellValue("Team URL");
-		sheet.setColumnWidth(columnIndex++, 3000);
-
-		for (Team team : teams) {
-			Manager manager = team.getManager();
-
-			columnIndex = 0;
-
-			Row row = sheet.createRow(rowIndex++);
-
-			row.createCell(columnIndex++).setCellValue(manager.getNickname());
-			Hyperlink managerHyperlink = creationHelper.createHyperlink(HyperlinkType.URL);
-			managerHyperlink.setAddress(manager.getUrl());
-			Cell managerUrlCell = row.createCell(columnIndex++);
-			managerUrlCell.setHyperlink(managerHyperlink);
-			managerUrlCell.setCellValue(manager.getUrl());
-
-			row.createCell(columnIndex++).setCellValue(team.getName());
-			row.createCell(columnIndex++).setCellValue(team.getLeagueCountry() + " " + team.getLeague());
-			XSSFHyperlink teamHyperlink = creationHelper.createHyperlink(HyperlinkType.URL);
-			teamHyperlink.setAddress(team.getUrl());
-			Cell teamUrlCell = row.createCell(columnIndex++);
-			teamUrlCell.setHyperlink(teamHyperlink);
-			teamUrlCell.setCellValue(team.getUrl());
-
-			for (Entry<String, Long> teamStrength : team.getTeamStrength().entrySet()) {
-				row.createCell(columnIndex).setCellValue(teamStrength.getValue());
-				Cell firstRowCell = firstRow.getCell(columnIndex);
-				if (firstRowCell == null) {
-					firstRowCell = firstRow.createCell(columnIndex);
-					firstRowCell.setCellValue(teamStrength.getKey());
-					sheet.setColumnWidth(columnIndex, 2000);
-				}
-				columnIndex++;
-			}
-
-			for (int i = 0; i < manager.getRecentLogins().size(); i++) {
-				LocalDateTime loginDate = manager.getRecentLogins().get(i);
-				row.createCell(columnIndex).setCellValue(loginDate.format(DateTimeFormatter.ISO_DATE_TIME));
-				Cell firstRowCell = firstRow.getCell(columnIndex);
-				if (firstRowCell == null) {
-					firstRowCell = firstRow.createCell(columnIndex);
-					firstRowCell.setCellValue("Login #" + i);
-					sheet.setColumnWidth(columnIndex, 5000);
-				}
-				columnIndex++;
-			}
-
-		}
-
-	}
-
-	private void exportToJsonFile(Map<Sport, Set<Team>> filteredTeams) throws IOException {
-		DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder().append(DateTimeFormatter.ISO_DATE)
-				.appendLiteral("T").appendValue(ChronoField.HOUR_OF_DAY, 2).appendLiteral("-")
-				.appendValue(ChronoField.MINUTE_OF_HOUR, 2).appendLiteral("-")
-				.appendValue(ChronoField.SECOND_OF_MINUTE, 2).toFormatter();
-
-		String outputFilename = new StringBuilder().append("ppmInactiveManagers-")
-				.append(this.now.format(dateTimeFormatter)).append(".json").toString();
-
-		LOGGER.info("Writing out the result to file: {}", outputFilename);
-
-		Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping()
-				.registerTypeAdapter(LocalDateTime.class, new LocalDateTimeJsonSerializer()).create();
-		File outputJsonFile = new File(outputFilename);
-		outputJsonFile.createNewFile();
-		JsonWriter jsonWriter = gson.newJsonWriter(new FileWriterWithEncoding(outputJsonFile, "UTF-8"));
-		gson.toJson(gson.toJsonTree(filteredTeams), jsonWriter);
-		jsonWriter.close();
-		LOGGER.info("Writing to the file was successful");
 	}
 
 	private WebClient createWebClient() throws Exception {

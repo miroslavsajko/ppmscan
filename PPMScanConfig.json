@@ -1,7 +1,7 @@
 {
   "millisecondsBetweenPageLoads": 2000,
-  "managerIdFrom": 2074400,
-  "managerIdTo": 2217290,
+  "managerIdFrom": 1,
+  "managerIdTo": 2125400,
   "managerIds": [],
   "teamFilters": {
   	"HOCKEY": {
@@ -26,5 +26,5 @@
   "ignoreListLastLoginMonthsThreshold": 24,
   "sizeOfThreadPool": 9,
   "chunkSize": 100,
-  "exportFormat": "EXCEL"
+  "exportFormat": "HTML"
 }
