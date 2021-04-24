@@ -117,6 +117,21 @@ public class PPMScannerApplication {
 		LOGGER.info("{} threads will be used", sizeOfThreadPool);
 		long timeStampBefore = Calendar.getInstance().getTimeInMillis();
 		ExecutorService executorService = new PPMScannerThreadPoolExecutor(sizeOfThreadPool, managerIds.size());
+		
+		IExporter exporter;
+		switch (configuration.getExportFormat()) {
+		case EXCEL:
+			exporter = new ExcelExporter(this.now);
+			break;
+		case HTML:
+			exporter = new HtmlExporter(this.now);
+			break;
+		case JSON:
+			exporter = new JsonExporter(this.now);
+		default:
+			exporter = new HtmlExporter(this.now);
+			break;
+		}
 
 		List<Callable<Entry<Long, Manager>>> tasks = new LinkedList<Callable<Entry<Long, Manager>>>();
 
@@ -172,19 +187,6 @@ public class PPMScannerApplication {
 				LOGGER.info("Found {} teams in {}", filteredTeamEntry.getValue().size(), filteredTeamEntry.getKey());
 			}
 
-			IExporter exporter;
-			switch (configuration.getExportFormat()) {
-			case EXCEL:
-				exporter = new ExcelExporter(this.now);
-				break;
-			case HTML:
-				exporter = new HtmlExporter(this.now);
-				break;
-			case JSON:
-			default:
-				exporter = new JsonExporter(this.now);
-				break;
-			}
 			exporter.export(filteredTeams);
 
 			i += configuration.getChunkSize();
