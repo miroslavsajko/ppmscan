@@ -4,26 +4,25 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.LongSerializationPolicy;
 import com.google.gson.stream.JsonWriter;
+
+import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
+import sk.ppmscan.application.importexport.json.IgnoredManagersJsonImportExport;
+import sk.ppmscan.application.importexport.sqlite.IgnoredManagersSQliteImportExport;
 
 public class ConfigurationHolder {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationHolder.class);
 
 	private static final String CONFIG_FILENAME = "PPMScanConfig.json";
-
-	private static final String IGNORED_MANAGERS_FILENAME = "ignoredManagers.json";
 
 	private static ConfigurationHolder configHolder = null;
 
@@ -33,10 +32,12 @@ public class ConfigurationHolder {
 
 	private ConfigurationHolder() throws Exception {
 		this.configuration = validateConfiguration(readConfiguration());
-		this.ignoredManagers = readIgnoredManagers();
+		this.ignoredManagers = readIgnoredManagers(this.configuration.getIgnoredManagersFormat());
 	}
 
 	private static Configuration readConfiguration() throws Exception {
+		LOGGER.info("Reading configuration file");
+		long startTimestamp = System.currentTimeMillis();
 		Configuration configuration = null;
 		Gson gson = new GsonBuilder().setPrettyPrinting().create();
 		try {
@@ -57,25 +58,22 @@ public class ConfigurationHolder {
 			writer.close();
 			LOGGER.info("New configuration file with default values was created");
 		}
+		LOGGER.info("The operation took {} ms", System.currentTimeMillis() - startTimestamp);
 		return configuration;
 	}
 
-	@SuppressWarnings("unchecked")
-	private static Set<Long> readIgnoredManagers() {
-		Set<Long> readIgnoredManagers;
-		Gson gson = new GsonBuilder().setPrettyPrinting().setLongSerializationPolicy(LongSerializationPolicy.DEFAULT)
-				.create();
-		try {
-			FileReader json = new FileReader(IGNORED_MANAGERS_FILENAME);
-			readIgnoredManagers = (Set<Long>) gson.fromJson(json, Set.class).stream().map(a -> {
-				return Double.valueOf("" + a).longValue();
-			}).collect(Collectors.toSet());
-			LOGGER.info("{} ignored managers were read successfully from a file.", readIgnoredManagers.size());
-		} catch (FileNotFoundException e) {
-			LOGGER.info("Ignored managers file was not found. Continue with an empty one.");
-			readIgnoredManagers = Collections.emptySet();
+	private static Set<Long> readIgnoredManagers(IgnoredManagersFormat ignoredManagersFormat) throws Exception {
+		IgnoredManagersImportExport ignoredManagersImporter;
+		switch (ignoredManagersFormat) {
+		case SQLITE:
+			ignoredManagersImporter = new IgnoredManagersSQliteImportExport();
+			break;
+		case JSON:
+		default:
+			ignoredManagersImporter = new IgnoredManagersJsonImportExport();
+			break;
 		}
-		return readIgnoredManagers;
+		return ignoredManagersImporter.importData();
 	}
 
 	private static Configuration validateConfiguration(Configuration configuration) {
@@ -96,7 +94,8 @@ public class ConfigurationHolder {
 		if (configuration.getMillisecondsBetweenPageLoads() < 100) {
 			configuration.setMillisecondsBetweenPageLoads(100);
 		}
-		if (configuration.getIgnoreListLastLoginMonthsThreshold() < 0 || configuration.getIgnoreListLastLoginMonthsThreshold() > 360) {
+		if (configuration.getIgnoreListLastLoginMonthsThreshold() < 0
+				|| configuration.getIgnoreListLastLoginMonthsThreshold() > 360) {
 			configuration.setIgnoreListLastLoginMonthsThreshold(36);
 		}
 		return configuration;

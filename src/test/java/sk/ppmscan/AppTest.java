@@ -2,8 +2,11 @@ package sk.ppmscan;
 
 import static org.junit.Assert.assertTrue;
 
+import java.sql.SQLException;
 import java.util.Map.Entry;
+import java.util.Set;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +15,10 @@ import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 
 import sk.ppmscan.application.beans.Team;
-import sk.ppmscan.application.reader.TeamReader;
+import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
+import sk.ppmscan.application.importexport.json.IgnoredManagersJsonImportExport;
+import sk.ppmscan.application.importexport.sqlite.IgnoredManagersSQliteImportExport;
+import sk.ppmscan.application.pageparser.TeamReader;
 
 /**
  * Unit test for simple App.
@@ -20,7 +26,7 @@ import sk.ppmscan.application.reader.TeamReader;
 public class AppTest {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AppTest.class);
 	@Test
-	public void shouldAnswerWithTrue() {
+	public void shouldAnswerWithTrue() throws SQLException {
 		assertTrue(true);
 	}
 	
@@ -36,4 +42,36 @@ public class AppTest {
 		}
 		client.close();
 	}
+	
+	@Ignore
+	@Test
+	public void ignoredManagersImportTesting() throws Exception {
+		
+		IgnoredManagersImportExport jsonImportExport = new IgnoredManagersJsonImportExport();
+		IgnoredManagersImportExport sqLiteImportExport = new IgnoredManagersSQliteImportExport();
+		
+		Set<Long> jsonSet = jsonImportExport.importData();
+		LOGGER.info("**************");
+		Set<Long> sqliteSet = sqLiteImportExport.importData();
+		LOGGER.info("**************");
+		
+//		Long newManagerId = new Random().nextLong();
+//		jsonSet.add(newManagerId);
+//		sqliteSet.add(newManagerId);
+		
+		jsonImportExport.exportData(jsonSet);
+		LOGGER.info("**************");
+		sqLiteImportExport.exportData(sqliteSet);
+		
+	}
+	
+	@Ignore
+	@Test
+	public void copyIgnoreManagersFromJsonToSqlite() throws Exception {
+		IgnoredManagersImportExport jsonImportExport = new IgnoredManagersJsonImportExport();
+		Set<Long> jsonImported = jsonImportExport.importData();
+		IgnoredManagersImportExport sqLiteImportExport = new IgnoredManagersSQliteImportExport();
+		sqLiteImportExport.exportData(jsonImported);
+	}
+	
 }

@@ -3,14 +3,10 @@
  */
 package sk.ppmscan.application;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.AbstractMap;
 import java.util.Calendar;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -38,21 +34,21 @@ import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlInput;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.stream.JsonWriter;
 
 import sk.ppmscan.application.beans.Manager;
 import sk.ppmscan.application.beans.Sport;
 import sk.ppmscan.application.beans.Team;
 import sk.ppmscan.application.config.Configuration;
 import sk.ppmscan.application.config.TeamFilterConfiguration;
-import sk.ppmscan.application.export.ExcelExporter;
-import sk.ppmscan.application.export.HtmlExporter;
-import sk.ppmscan.application.export.IExporter;
-import sk.ppmscan.application.export.JsonExporter;
-import sk.ppmscan.application.reader.ManagerReader;
-import sk.ppmscan.application.reader.TeamReader;
+import sk.ppmscan.application.importexport.FilteredTeamsExporter;
+import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
+import sk.ppmscan.application.importexport.excel.FilteredTeamsExcelExporter;
+import sk.ppmscan.application.importexport.html.FilteredTeamsHtmlExporter;
+import sk.ppmscan.application.importexport.json.FilteredTeamsJsonExporter;
+import sk.ppmscan.application.importexport.json.IgnoredManagersJsonImportExport;
+import sk.ppmscan.application.importexport.sqlite.IgnoredManagersSQliteImportExport;
+import sk.ppmscan.application.pageparser.ManagerReader;
+import sk.ppmscan.application.pageparser.TeamReader;
 import sk.ppmscan.application.util.PPMScannerThreadPoolExecutor;
 
 /**
@@ -68,11 +64,9 @@ public class PPMScannerApplication {
 
 	private static final String LOGIN_URL = "https://ppm.powerplaymanager.com/en/login-to-ppm.html";
 
-	private static final String IGNORED_MANAGERS_FILENAME = "ignoredManagers.json";
-
-	private BrowserVersion[] browsers = new BrowserVersion[] { BrowserVersion.CHROME, BrowserVersion.EDGE,
+	private static BrowserVersion[] browsers = new BrowserVersion[] { BrowserVersion.CHROME, BrowserVersion.EDGE,
 			BrowserVersion.FIREFOX_38, BrowserVersion.INTERNET_EXPLORER_11 };
-
+	
 	private LocalDateTime now;
 
 	private Configuration configuration;
@@ -117,20 +111,31 @@ public class PPMScannerApplication {
 		LOGGER.info("{} threads will be used", sizeOfThreadPool);
 		long timeStampBefore = Calendar.getInstance().getTimeInMillis();
 		ExecutorService executorService = new PPMScannerThreadPoolExecutor(sizeOfThreadPool, managerIds.size());
-		
-		IExporter exporter;
+
+		FilteredTeamsExporter filteredTeamsExporter;
 		switch (configuration.getExportFormat()) {
 		case EXCEL:
-			exporter = new ExcelExporter(this.now);
+			filteredTeamsExporter = new FilteredTeamsExcelExporter(this.now);
 			break;
 		case HTML:
-			exporter = new HtmlExporter(this.now);
+			filteredTeamsExporter = new FilteredTeamsHtmlExporter(this.now);
 			break;
 		case JSON:
-			exporter = new JsonExporter(this.now);
-		default:
-			exporter = new HtmlExporter(this.now);
+			filteredTeamsExporter = new FilteredTeamsJsonExporter(this.now);
 			break;
+		default:
+			filteredTeamsExporter = new FilteredTeamsHtmlExporter(this.now);
+			break;
+		}
+
+		IgnoredManagersImportExport ignoredManagersImportExport;
+		switch (configuration.getIgnoredManagersFormat()) {
+		case JSON:
+			ignoredManagersImportExport = new IgnoredManagersJsonImportExport();
+		case SQLITE:
+			ignoredManagersImportExport = new IgnoredManagersSQliteImportExport();
+		default:
+			ignoredManagersImportExport = new IgnoredManagersJsonImportExport();
 		}
 
 		List<Callable<Entry<Long, Manager>>> tasks = new LinkedList<Callable<Entry<Long, Manager>>>();
@@ -180,14 +185,15 @@ public class PPMScannerApplication {
 
 			LOGGER.info("Added another {} managers to the ignore list, ignore list now contains {} managers",
 					ignoreListSizeAfter - ignoreListSizeBefore, ignoredManagerSet.size());
-			this.writeIgnoredManagersToFile(ignoredManagerSet);
+
+			ignoredManagersImportExport.exportData(ignoredManagerSet);
 
 			LOGGER.info("Found {} managers in this run", filteredManagers.size());
 			for (Entry<Sport, Set<Team>> filteredTeamEntry : filteredTeams.entrySet()) {
 				LOGGER.info("Found {} teams in {}", filteredTeamEntry.getValue().size(), filteredTeamEntry.getKey());
 			}
 
-			exporter.export(filteredTeams);
+			filteredTeamsExporter.exportData(filteredTeams);
 
 			i += configuration.getChunkSize();
 		}
@@ -289,21 +295,16 @@ public class PPMScannerApplication {
 		LOGGER.info("Manager {}'s team in {} fits the criteria", team.getManager().getId(), team.getSport());
 		return true;
 	}
-
-	private void writeIgnoredManagersToFile(Collection<Long> updatedIgnoredManagers) throws IOException {
-		LOGGER.info("Writing out ignored managers to file: {}", IGNORED_MANAGERS_FILENAME);
-
-		Gson gson = new GsonBuilder().setPrettyPrinting().create();
-		File outputJsonFile = new File(IGNORED_MANAGERS_FILENAME);
-		outputJsonFile.createNewFile();
-		JsonWriter jsonWriter = gson.newJsonWriter(new FileWriter(outputJsonFile));
-		gson.toJson(gson.toJsonTree(updatedIgnoredManagers), jsonWriter);
-		jsonWriter.close();
-		LOGGER.info("Writing to the file was successful");
-
+	
+	@SuppressWarnings("unused")
+	private static WebClient createWebClient(BrowserVersion browser) throws Exception {
+		WebClient client = new WebClient(browser);
+		client.getOptions().setCssEnabled(false);
+		client.getOptions().setJavaScriptEnabled(false);
+		return client;
 	}
 
-	private WebClient createWebClient() throws Exception {
+	private static WebClient createWebClient() throws Exception {
 		WebClient client = new WebClient(browsers[new Random().nextInt(browsers.length)]);
 		client.getOptions().setCssEnabled(false);
 		client.getOptions().setJavaScriptEnabled(false);

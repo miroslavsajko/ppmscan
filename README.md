@@ -40,6 +40,10 @@ Waiting time between page loads. It is meant to decrease the load on the server 
 
 Threshold for how many months the user must be inactive in order to be added to the ignore list.
 
+### ignoredManagersFormat
+
+Format which is used to import and export the ignored managers. Possible values are JSON and SQLITE.
+
 ### sizeOfThreadPool
 
 How many threads will load pages in parallel.
