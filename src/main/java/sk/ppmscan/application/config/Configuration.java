@@ -9,7 +9,7 @@ import sk.ppmscan.application.beans.Sport;
 /**
  * App configuration.
  * 
- * @author mirak
+ * @author miroslavsajko
  *
  */
 public class Configuration {

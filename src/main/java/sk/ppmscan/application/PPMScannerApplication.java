@@ -4,8 +4,6 @@
 package sk.ppmscan.application;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.AbstractMap;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
@@ -13,33 +11,25 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import org.apache.commons.collections.CollectionUtils;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormatter;
 import org.joda.time.format.PeriodFormatterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.gargoylesoftware.htmlunit.BrowserVersion;
-import com.gargoylesoftware.htmlunit.WebClient;
-import com.gargoylesoftware.htmlunit.html.HtmlForm;
-import com.gargoylesoftware.htmlunit.html.HtmlInput;
-import com.gargoylesoftware.htmlunit.html.HtmlPage;
-
 import sk.ppmscan.application.beans.Manager;
 import sk.ppmscan.application.beans.Sport;
 import sk.ppmscan.application.beans.Team;
 import sk.ppmscan.application.config.Configuration;
-import sk.ppmscan.application.config.TeamFilterConfiguration;
 import sk.ppmscan.application.importexport.FilteredTeamsExporter;
 import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
 import sk.ppmscan.application.importexport.excel.FilteredTeamsExcelExporter;
@@ -47,27 +37,20 @@ import sk.ppmscan.application.importexport.html.FilteredTeamsHtmlExporter;
 import sk.ppmscan.application.importexport.json.FilteredTeamsJsonExporter;
 import sk.ppmscan.application.importexport.json.IgnoredManagersJsonImportExport;
 import sk.ppmscan.application.importexport.sqlite.IgnoredManagersSQliteImportExport;
-import sk.ppmscan.application.pageparser.ManagerReader;
-import sk.ppmscan.application.pageparser.TeamReader;
+import sk.ppmscan.application.processor.FetchReadProcessManagerPageTask;
+import sk.ppmscan.application.processor.ProcessedManager;
 import sk.ppmscan.application.util.PPMScannerThreadPoolExecutor;
 
 /**
  * 
- * @author mirak
+ * @author miroslavsajko
  *
  */
 public class PPMScannerApplication {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(PPMScannerApplication.class);
 
-	private static final String MANAGER_PROFILE_URL = "https://ppm.powerplaymanager.com/en/manager-profile.html?data=";
-
-	private static final String LOGIN_URL = "https://ppm.powerplaymanager.com/en/login-to-ppm.html";
-
-	private static BrowserVersion[] browsers = new BrowserVersion[] { BrowserVersion.CHROME, BrowserVersion.EDGE,
-			BrowserVersion.FIREFOX_38, BrowserVersion.INTERNET_EXPLORER_11 };
-	
-	private LocalDateTime now;
+	private LocalDateTime appStartTime;
 
 	private Configuration configuration;
 
@@ -75,13 +58,13 @@ public class PPMScannerApplication {
 
 	public PPMScannerApplication(Configuration configuration, Set<Long> ignoredManagers, String login, String password)
 			throws Exception {
-		this.now = LocalDateTime.now();
+		this.appStartTime = LocalDateTime.now();
 		this.configuration = configuration;
 		this.ignoredManagers = ignoredManagers;
 	}
 
 	public PPMScannerApplication(Configuration configuration, Set<Long> ignoredManagers) throws Exception {
-		this.now = LocalDateTime.now();
+		this.appStartTime = LocalDateTime.now();
 		this.configuration = configuration;
 		this.ignoredManagers = ignoredManagers;
 	}
@@ -115,16 +98,16 @@ public class PPMScannerApplication {
 		FilteredTeamsExporter filteredTeamsExporter;
 		switch (configuration.getExportFormat()) {
 		case EXCEL:
-			filteredTeamsExporter = new FilteredTeamsExcelExporter(this.now);
+			filteredTeamsExporter = new FilteredTeamsExcelExporter(this.appStartTime);
 			break;
 		case HTML:
-			filteredTeamsExporter = new FilteredTeamsHtmlExporter(this.now);
+			filteredTeamsExporter = new FilteredTeamsHtmlExporter(this.appStartTime);
 			break;
 		case JSON:
-			filteredTeamsExporter = new FilteredTeamsJsonExporter(this.now);
+			filteredTeamsExporter = new FilteredTeamsJsonExporter(this.appStartTime);
 			break;
 		default:
-			filteredTeamsExporter = new FilteredTeamsHtmlExporter(this.now);
+			filteredTeamsExporter = new FilteredTeamsHtmlExporter(this.appStartTime);
 			break;
 		}
 
@@ -138,47 +121,34 @@ public class PPMScannerApplication {
 			ignoredManagersImportExport = new IgnoredManagersJsonImportExport();
 		}
 
-		List<Callable<Entry<Long, Manager>>> tasks = new LinkedList<Callable<Entry<Long, Manager>>>();
+		List<Callable<Entry<Long, ProcessedManager>>> tasks = new LinkedList<Callable<Entry<Long, ProcessedManager>>>();
 
 		for (int i = 0; i < managerIds.size();) {
 
 			for (int j = i; j < i + configuration.getChunkSize() && j < managerIds.size(); j++) {
-				Long managerId = managerIds.get(j);
-
-				tasks.add(new Callable<Entry<Long, Manager>>() {
-
-					@Override
-					public Entry<Long, Manager> call() {
-						try {
-							WebClient client = createWebClient();
-							HtmlPage managerPage;
-							managerPage = client.getPage(MANAGER_PROFILE_URL + managerId);
-							Thread.sleep(configuration.getMillisecondsBetweenPageLoads());
-							Manager manager = ManagerReader.readManagerInfo(managerPage);
-							if (isIgnorable(manager)) {
-								ignoredManagerSet.add(managerId);
-							} else if (applyManagerFilters(manager)) {
-								filteredManagers.add(manager);
-								for (Team team : manager.getTeams()) {
-									TeamReader.readTeamInfo(team, client.getPage(team.getUrl()));
-									if (applyTeamFilters(team)) {
-										filteredTeams.get(team.getSport()).add(team);
-									}
-									Thread.sleep(configuration.getMillisecondsBetweenPageLoads());
-								}
-							}
-							client.close();
-							return new AbstractMap.SimpleEntry<Long, Manager>(managerId, manager);
-						} catch (Exception e) {
-							LOGGER.error("Error during loading of manager  " + managerId, e);
-							return new AbstractMap.SimpleEntry<Long, Manager>(managerId, null);
-						}
-					}
-				});
+				Long managerId = managerIds.get(j);			
+				tasks.add(new FetchReadProcessManagerPageTask(configuration, managerId, appStartTime));
 			}
 
 			int ignoreListSizeBefore = ignoredManagerSet.size();
-			executorService.invokeAll(tasks);
+			
+			List<Future<Entry<Long, ProcessedManager>>> invokedFutures = executorService.invokeAll(tasks);
+			for (Future<Entry<Long, ProcessedManager>> taskResult : invokedFutures) {
+				Entry<Long, ProcessedManager> entry = taskResult.get();
+				Long managerId = entry.getKey();
+				ProcessedManager processedManager = entry.getValue();
+				if (processedManager != null) {
+					if (processedManager.isIgnorable()) {
+						ignoredManagerSet.add(managerId);
+					} else if (processedManager.isFilterable()) {
+						filteredManagers.add(processedManager.getManager());
+						for (Team team : processedManager.getFilterableTeams()) {
+							filteredTeams.get(team.getSport()).add(team);
+						}
+					}
+				}
+			}
+			
 			int ignoreListSizeAfter = ignoredManagerSet.size();
 
 			tasks.clear();
@@ -210,143 +180,5 @@ public class PPMScannerApplication {
 		LOGGER.info("{} tasks never finished because of termination", executorService.shutdownNow().size());
 
 	}
-
-	/**
-	 * Manager is ignorable when he is blocked or when he has no recent logins.
-	 * 
-	 * @param manager manager
-	 * @return true if this manager should be ignored
-	 */
-	private boolean isIgnorable(Manager manager) {
-		if (manager.isBlocked()) {
-			LOGGER.debug("Manager {} is blocked", manager.getId());
-			return true;
-		}
-		if (CollectionUtils.isEmpty(manager.getRecentLogins())) {
-			LOGGER.debug("Manager {} doesnt have any recent logins", manager.getId());
-			return true;
-		}
-		long lastLoginMonthsAgo = ChronoUnit.MONTHS.between(manager.getRecentLogins().get(0), this.now);
-		if (lastLoginMonthsAgo > this.configuration.getIgnoreListLastLoginMonthsThreshold()) {
-			LOGGER.debug("Manager {} logged in the last time {} months ago", manager.getId(), lastLoginMonthsAgo);
-			return true;
-		}
-		return false;
-	}
-
-	private boolean applyManagerFilters(Manager manager) {
-		if (CollectionUtils.isEmpty(manager.getTeams())) {
-			LOGGER.debug("Manager {} has no teams", manager.getId());
-			return false;
-		}
-
-		int recentLoginFilterCriteriaMatchCount = 0;
-
-		LocalDateTime mostRecentLogin = manager.getRecentLogins().get(0);
-
-		long mostRecentLoginDaysAgo = ChronoUnit.DAYS.between(mostRecentLogin, this.now);
-		if (mostRecentLoginDaysAgo < configuration.getLastLoginDaysRecentlyActiveThreshold()) {
-			LOGGER.debug("Manager {} was active just recently", manager.getId());
-		} else {
-			recentLoginFilterCriteriaMatchCount++;
-		}
-
-		long dayDifferenceBuffer = 0;
-		for (int i = 0; i < manager.getRecentLogins().size() - 1; i++) {
-			long loginDayDifference = ChronoUnit.DAYS.between(manager.getRecentLogins().get(i), this.now);
-			dayDifferenceBuffer += loginDayDifference;
-		}
-
-		if (dayDifferenceBuffer < configuration.getLastLoginDayDifferenceSumThreshold()) {
-			// the user is probably regularly active
-			LOGGER.debug("Manager {} is probably regularly active, dayDifferenceBuffer: {}", manager.getId(),
-					dayDifferenceBuffer);
-		} else {
-			recentLoginFilterCriteriaMatchCount++;
-		}
-
-		if (recentLoginFilterCriteriaMatchCount < this.configuration.getLastLoginCriteriaMatch()) {
-			LOGGER.debug("Manager {} does not match enough criteria ({}/{})", manager.getId(),
-					recentLoginFilterCriteriaMatchCount, this.configuration.getLastLoginCriteriaMatch());
-			return false;
-		}
-
-		LOGGER.info("Manager {} with {} teams fits the manager criteria", manager.getId(), manager.getTeams().size());
-		return true;
-	}
-
-	private boolean applyTeamFilters(Team team) {
-		TeamFilterConfiguration teamFilterConfiguration = this.configuration.getTeamFilters().get(team.getSport());
-		if (teamFilterConfiguration == null) {
-			LOGGER.info("Manager {}'s team in {} is not in configuration - team ignored", team.getManager().getId(),
-					team.getSport());
-			return false;
-		}
-		for (Entry<String, Long> minStrengthConfigEntry : teamFilterConfiguration.getMinTeamStrengths().entrySet()) {
-			String teamStrengthAttribute = minStrengthConfigEntry.getKey();
-			Long teamStrength = team.getTeamStrength().get(teamStrengthAttribute);
-			if (teamStrength == null || teamStrength < minStrengthConfigEntry.getValue()) {
-				LOGGER.info("Manager {}'s team in {} does not match minimum strength criteria ({} {} < {})",
-						team.getManager().getId(), team.getSport(), teamStrengthAttribute, teamStrength,
-						minStrengthConfigEntry.getValue());
-				return false;
-			}
-		}
-		LOGGER.info("Manager {}'s team in {} fits the criteria", team.getManager().getId(), team.getSport());
-		return true;
-	}
 	
-	@SuppressWarnings("unused")
-	private static WebClient createWebClient(BrowserVersion browser) throws Exception {
-		WebClient client = new WebClient(browser);
-		client.getOptions().setCssEnabled(false);
-		client.getOptions().setJavaScriptEnabled(false);
-		return client;
-	}
-
-	private static WebClient createWebClient() throws Exception {
-		WebClient client = new WebClient(browsers[new Random().nextInt(browsers.length)]);
-		client.getOptions().setCssEnabled(false);
-		client.getOptions().setJavaScriptEnabled(false);
-		return client;
-	}
-
-	@SuppressWarnings("unused")
-	private WebClient createWebClient(String login, String password) throws Exception {
-		WebClient client = createWebClient();
-
-		HtmlPage page = client.getPage(LOGIN_URL);
-
-		HtmlInput inputUsername = page.getFirstByXPath("//input[@id='username']");
-		if (inputUsername == null) {
-			throw new Exception("Username field not found");
-		}
-
-		HtmlInput inputPassword = page.getFirstByXPath("//input[@type='password']");
-		if (inputPassword == null) {
-			throw new Exception("Password field not found");
-		}
-
-		inputUsername.setValueAttribute(login);
-		inputPassword.setValueAttribute(password);
-
-		// get the enclosing form
-		HtmlForm loginForm = inputPassword.getEnclosingForm();
-
-		// submit the form
-		page = client.getPage(loginForm.getWebRequest(null));
-
-		page = client.getPage("https://ppm.powerplaymanager.com/en/home.html");
-
-		LOGGER.info("After login, title text: " + page.getTitleText());
-		if (!"User account".equals(page.getTitleText())) {
-			throw new Exception("Most likely not logged in");
-		}
-
-		LOGGER.info("Logged in!");
-
-		// returns the cookies filled client :)
-		return client;
-	}
-
 }
