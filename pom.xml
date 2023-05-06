@@ -7,7 +7,7 @@
 
 	<groupId>sk.ppscan</groupId>
 	<artifactId>ppmscan</artifactId>
-	<version>0.2.1-SNAPSHOT</version>
+	<version>0.2.2-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>ppmscan</name>

@@ -115,10 +115,13 @@ public class PPMScannerApplication {
 		switch (configuration.getIgnoredManagersFormat()) {
 		case JSON:
 			ignoredManagersImportExport = new IgnoredManagersJsonImportExport();
+			break;
 		case SQLITE:
 			ignoredManagersImportExport = new IgnoredManagersSQliteImportExport();
+			break;
 		default:
 			ignoredManagersImportExport = new IgnoredManagersJsonImportExport();
+			break;
 		}
 
 		List<Callable<Entry<Long, ProcessedManager>>> tasks = new LinkedList<Callable<Entry<Long, ProcessedManager>>>();

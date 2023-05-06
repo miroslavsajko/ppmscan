@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -18,6 +19,12 @@ import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
 public class IgnoredManagersSQliteImportExport implements IgnoredManagersImportExport {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(IgnoredManagersSQliteImportExport.class);
+	
+	private Set<Long> readManagerIds;
+	
+	public IgnoredManagersSQliteImportExport() {
+		this.readManagerIds = Collections.synchronizedSortedSet(new TreeSet<Long>());
+	}
 
 	public Connection getConnection() throws SQLException {
 		String url = "jdbc:sqlite:ppmScan.db";
@@ -87,6 +94,7 @@ public class IgnoredManagersSQliteImportExport implements IgnoredManagersImportE
 		LOGGER.info("Importing ignored managers from sqlite");
 		long startTime = System.currentTimeMillis();
 		Set<Long> data = this.selectAll();
+		readManagerIds.addAll(data);
 		LOGGER.info("The operation took {} ms", System.currentTimeMillis() - startTime);
 		return data;
 	}
@@ -95,9 +103,9 @@ public class IgnoredManagersSQliteImportExport implements IgnoredManagersImportE
 	public void exportData(Set<Long> data) throws Exception {
 		LOGGER.info("Exporting ignored managers to sqlite");
 		long startTime = System.currentTimeMillis();
-		Set<Long> existingData = this.selectAll();
-		data.removeAll(existingData);
+		data.removeAll(readManagerIds);
 		this.insert(data);
+		readManagerIds.addAll(data);
 		LOGGER.info("The operation took {} ms", System.currentTimeMillis() - startTime);
 	}
 
