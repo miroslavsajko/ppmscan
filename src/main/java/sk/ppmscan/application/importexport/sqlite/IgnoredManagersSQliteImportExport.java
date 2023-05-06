@@ -19,14 +19,14 @@ import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
 public class IgnoredManagersSQliteImportExport implements IgnoredManagersImportExport {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(IgnoredManagersSQliteImportExport.class);
-	
+
 	private Set<Long> readManagerIds;
-	
+
 	public IgnoredManagersSQliteImportExport() {
 		this.readManagerIds = Collections.synchronizedSortedSet(new TreeSet<Long>());
 	}
 
-	public Connection getConnection() throws SQLException {
+	private Connection getConnection() throws SQLException {
 		String url = "jdbc:sqlite:ppmScan.db";
 
 		Connection conn = DriverManager.getConnection(url);
@@ -36,12 +36,34 @@ public class IgnoredManagersSQliteImportExport implements IgnoredManagersImportE
 		return conn;
 	}
 
-	public void insert(Set<Long> managerIds) throws SQLException {
-		
+	@Override
+	public Set<Long> importData() throws Exception {
+		LOGGER.info("Importing ignored managers from sqlite");
+		long startTime = System.currentTimeMillis();
+		Set<Long> data = this.selectAll();
+		readManagerIds.addAll(data);
+		LOGGER.info("The operation took {} ms", System.currentTimeMillis() - startTime);
+		return data;
+	}
+
+	@Override
+	public void exportData(Set<Long> managerIds) throws Exception {
 		if (managerIds.isEmpty()) {
 			LOGGER.info("There aren't any manager ids to insert");
 			return;
 		}
+		LOGGER.info("Exporting ignored managers to sqlite");
+		long startTime = System.currentTimeMillis();
+		if (readManagerIds.isEmpty()) {
+			readManagerIds.addAll(this.selectAll());
+		}
+		managerIds.removeAll(readManagerIds);
+		this.insert(managerIds);
+		readManagerIds.addAll(managerIds);
+		LOGGER.info("The operation took {} ms", System.currentTimeMillis() - startTime);
+	}
+
+	private void insert(Set<Long> managerIds) throws SQLException {
 
 		Connection connection = this.getConnection();
 
@@ -55,22 +77,22 @@ public class IgnoredManagersSQliteImportExport implements IgnoredManagersImportE
 
 			if (++count % 1000 == 0) {
 				int[] executed = statement.executeBatch();
-				int sum = Arrays.stream(executed).filter(a->a>=0).sum();
+				int sum = Arrays.stream(executed).filter(a -> a >= 0).sum();
 				inserted += sum;
 				LOGGER.info("Executed batch {}, inserted {}", count, sum);
 			}
 		}
 
 		int[] executed = statement.executeBatch();
-		int sum = Arrays.stream(executed).filter(a->a>=0).sum();
+		int sum = Arrays.stream(executed).filter(a -> a >= 0).sum();
 		inserted += sum;
 		LOGGER.info("Executed batch {}, inserted {}", count, sum);
 		connection.close();
 		LOGGER.info("Inserted {} rows", inserted);
-		
+
 	}
 
-	public Set<Long> selectAll() throws SQLException {
+	private Set<Long> selectAll() throws SQLException {
 
 		String sql = "SELECT * FROM ignoredManagers";
 
@@ -87,26 +109,6 @@ public class IgnoredManagersSQliteImportExport implements IgnoredManagersImportE
 		LOGGER.info("Select all returned {} managers ids", ignoredManagers.size());
 		conn.close();
 		return ignoredManagers;
-	}
-
-	@Override
-	public Set<Long> importData() throws Exception {
-		LOGGER.info("Importing ignored managers from sqlite");
-		long startTime = System.currentTimeMillis();
-		Set<Long> data = this.selectAll();
-		readManagerIds.addAll(data);
-		LOGGER.info("The operation took {} ms", System.currentTimeMillis() - startTime);
-		return data;
-	}
-
-	@Override
-	public void exportData(Set<Long> data) throws Exception {
-		LOGGER.info("Exporting ignored managers to sqlite");
-		long startTime = System.currentTimeMillis();
-		data.removeAll(readManagerIds);
-		this.insert(data);
-		readManagerIds.addAll(data);
-		LOGGER.info("The operation took {} ms", System.currentTimeMillis() - startTime);
 	}
 
 }

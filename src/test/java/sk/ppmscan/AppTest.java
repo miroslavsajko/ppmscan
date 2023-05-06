@@ -74,4 +74,15 @@ public class AppTest {
 		sqLiteImportExport.exportData(jsonImported);
 	}
 	
+	@Ignore
+	@Test
+	public void copyIgnoreManagersFromSqliteToJson() throws Exception {
+		IgnoredManagersImportExport sqLiteImportExport = new IgnoredManagersSQliteImportExport();
+		Set<Long> imported = sqLiteImportExport.importData();
+		
+		IgnoredManagersImportExport jsonImportExport = new IgnoredManagersJsonImportExport();
+		jsonImportExport.exportData(imported);
+		
+	}
+	
 }

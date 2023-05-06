@@ -1,7 +1,7 @@
 {
 	"millisecondsBetweenPageLoads": 2000,
-	"managerIdFrom": 1,
-	"managerIdTo": 2125400,
+	"managerIdFrom": 2325400,
+	"managerIdTo": 2327200,
 	"managerIds": [],
 	"teamFilters": {
 		"HOCKEY": {
@@ -23,9 +23,9 @@
 	"lastLoginDayDifferenceSumThreshold": 15,
 	"lastLoginDaysRecentlyActiveThreshold": 2,
 	"lastLoginCriteriaMatch": 1,
-	"ignoreListLastLoginMonthsThreshold": 24,
+	"ignoreListLastLoginMonthsThreshold": 3,
 	"ignoredManagersFormat": "SQLITE",
 	"sizeOfThreadPool": 9,
-	"chunkSize": 100,
+	"chunkSize": 50,
 	"exportFormat": "HTML"
 }

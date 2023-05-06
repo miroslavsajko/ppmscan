@@ -32,11 +32,6 @@ import sk.ppmscan.application.beans.Team;
 import sk.ppmscan.application.config.Configuration;
 import sk.ppmscan.application.importexport.FilteredTeamsExporter;
 import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
-import sk.ppmscan.application.importexport.excel.FilteredTeamsExcelExporter;
-import sk.ppmscan.application.importexport.html.FilteredTeamsHtmlExporter;
-import sk.ppmscan.application.importexport.json.FilteredTeamsJsonExporter;
-import sk.ppmscan.application.importexport.json.IgnoredManagersJsonImportExport;
-import sk.ppmscan.application.importexport.sqlite.IgnoredManagersSQliteImportExport;
 import sk.ppmscan.application.processor.FetchReadProcessManagerPageTask;
 import sk.ppmscan.application.processor.ProcessedManager;
 import sk.ppmscan.application.util.PPMScannerThreadPoolExecutor;
@@ -52,42 +47,19 @@ public class PPMScannerApplication {
 
 	private LocalDateTime appStartTime;
 
-	private Configuration configuration;
-
-	private Set<Long> ignoredManagers;
-
-	public PPMScannerApplication(Configuration configuration, Set<Long> ignoredManagers, String login, String password)
-			throws Exception {
+	public PPMScannerApplication() {
 		this.appStartTime = LocalDateTime.now();
-		this.configuration = configuration;
-		this.ignoredManagers = ignoredManagers;
 	}
 
-	public PPMScannerApplication(Configuration configuration, Set<Long> ignoredManagers) throws Exception {
-		this.appStartTime = LocalDateTime.now();
-		this.configuration = configuration;
-		this.ignoredManagers = ignoredManagers;
-	}
+	public void scan(Configuration configuration) throws Exception {
+		
+		IgnoredManagersImportExport ignoredManagersImportExport = configuration.getIgnoredManagersFormat().getIgnoredManagersImportExporter();
+		
+		List<Long> managerIds = getManagerIds(configuration, ignoredManagersImportExport);
 
-	public void scan() throws Exception {
-		List<Long> managerIds = configuration.getManagerIds().stream().collect(Collectors.toList());
-
-		for (long managerId = configuration.getManagerIdFrom(); managerId <= configuration
-				.getManagerIdTo(); managerId++) {
-			managerIds.add(managerId);
-		}
-		LOGGER.info("{} managers will be scanned", managerIds.size());
-		LOGGER.info("Applying ignore list of {} managers", ignoredManagers.size());
-
-		managerIds.removeAll(ignoredManagers);
-		managerIds.sort((a, b) -> a.compareTo(b));
-
-		LOGGER.info("After applying ignore list: {} managers will be scanned", managerIds.size());
-
-		Set<Long> ignoredManagerSet = Collections.synchronizedSortedSet(new TreeSet<Long>(this.ignoredManagers));
 		Set<Manager> filteredManagers = Collections.synchronizedSet(new HashSet<>());
 		Map<Sport, Set<Team>> filteredTeams = Collections.synchronizedMap(new TreeMap<Sport, Set<Team>>());
-		this.configuration.getTeamFilters().keySet()
+		configuration.getTeamFilters().keySet()
 				.forEach(sport -> filteredTeams.put(sport, Collections.synchronizedSet(new TreeSet<>())));
 
 		int sizeOfThreadPool = configuration.getSizeOfThreadPool();
@@ -95,46 +67,18 @@ public class PPMScannerApplication {
 		long timeStampBefore = Calendar.getInstance().getTimeInMillis();
 		ExecutorService executorService = new PPMScannerThreadPoolExecutor(sizeOfThreadPool, managerIds.size());
 
-		FilteredTeamsExporter filteredTeamsExporter;
-		switch (configuration.getExportFormat()) {
-		case EXCEL:
-			filteredTeamsExporter = new FilteredTeamsExcelExporter(this.appStartTime);
-			break;
-		case HTML:
-			filteredTeamsExporter = new FilteredTeamsHtmlExporter(this.appStartTime);
-			break;
-		case JSON:
-			filteredTeamsExporter = new FilteredTeamsJsonExporter(this.appStartTime);
-			break;
-		default:
-			filteredTeamsExporter = new FilteredTeamsHtmlExporter(this.appStartTime);
-			break;
-		}
-
-		IgnoredManagersImportExport ignoredManagersImportExport;
-		switch (configuration.getIgnoredManagersFormat()) {
-		case JSON:
-			ignoredManagersImportExport = new IgnoredManagersJsonImportExport();
-			break;
-		case SQLITE:
-			ignoredManagersImportExport = new IgnoredManagersSQliteImportExport();
-			break;
-		default:
-			ignoredManagersImportExport = new IgnoredManagersJsonImportExport();
-			break;
-		}
+		FilteredTeamsExporter filteredTeamsExporter = configuration.getExportFormat().getFilteredTeamsExporter(this.appStartTime);
 
 		List<Callable<Entry<Long, ProcessedManager>>> tasks = new LinkedList<Callable<Entry<Long, ProcessedManager>>>();
 
 		for (int i = 0; i < managerIds.size();) {
 
 			for (int j = i; j < i + configuration.getChunkSize() && j < managerIds.size(); j++) {
-				Long managerId = managerIds.get(j);			
+				Long managerId = managerIds.get(j);
 				tasks.add(new FetchReadProcessManagerPageTask(configuration, managerId, appStartTime));
 			}
+			Set<Long> newIgnoredManagers = Collections.synchronizedSortedSet(new TreeSet<Long>());
 
-			int ignoreListSizeBefore = ignoredManagerSet.size();
-			
 			List<Future<Entry<Long, ProcessedManager>>> invokedFutures = executorService.invokeAll(tasks);
 			for (Future<Entry<Long, ProcessedManager>> taskResult : invokedFutures) {
 				Entry<Long, ProcessedManager> entry = taskResult.get();
@@ -142,7 +86,7 @@ public class PPMScannerApplication {
 				ProcessedManager processedManager = entry.getValue();
 				if (processedManager != null) {
 					if (processedManager.isIgnorable()) {
-						ignoredManagerSet.add(managerId);
+						newIgnoredManagers.add(managerId);
 					} else if (processedManager.isFilterable()) {
 						filteredManagers.add(processedManager.getManager());
 						for (Team team : processedManager.getFilterableTeams()) {
@@ -151,15 +95,12 @@ public class PPMScannerApplication {
 					}
 				}
 			}
-			
-			int ignoreListSizeAfter = ignoredManagerSet.size();
 
 			tasks.clear();
 
-			LOGGER.info("Added another {} managers to the ignore list, ignore list now contains {} managers",
-					ignoreListSizeAfter - ignoreListSizeBefore, ignoredManagerSet.size());
+			LOGGER.info("Added {} new managers to the ignore list", newIgnoredManagers.size());
 
-			ignoredManagersImportExport.exportData(ignoredManagerSet);
+			ignoredManagersImportExport.exportData(newIgnoredManagers);
 
 			LOGGER.info("Found {} managers in this run", filteredManagers.size());
 			for (Entry<Sport, Set<Team>> filteredTeamEntry : filteredTeams.entrySet()) {
@@ -170,6 +111,7 @@ public class PPMScannerApplication {
 
 			i += configuration.getChunkSize();
 		}
+		
 		long timeStampAfter = Calendar.getInstance().getTimeInMillis();
 		Duration duration = new Duration(timeStampAfter - timeStampBefore);
 
@@ -184,4 +126,25 @@ public class PPMScannerApplication {
 
 	}
 	
+	private List<Long> getManagerIds(Configuration configuration, IgnoredManagersImportExport ignoredManagersImportExport) throws Exception {
+		List<Long> managerIds = configuration.getManagerIds().stream().collect(Collectors.toList());
+
+		for (long managerId = configuration.getManagerIdFrom(); managerId <= configuration
+				.getManagerIdTo(); managerId++) {
+			managerIds.add(managerId);
+		}
+		LOGGER.info("{} managers should be scanned", managerIds.size());
+		
+		Set<Long> ignoredManagers = ignoredManagersImportExport.importData();
+		
+		LOGGER.info("Applying ignore list of {} managers", ignoredManagers.size());
+
+		managerIds.removeAll(ignoredManagers);
+		managerIds.sort((a, b) -> a.compareTo(b));
+		
+		LOGGER.info("After applying ignore list: {} managers will be scanned", managerIds.size());
+		
+		return managerIds;
+	}
+
 }

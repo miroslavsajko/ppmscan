@@ -23,23 +23,23 @@ import sk.ppmscan.application.pageparser.TeamReader;
 import sk.ppmscan.application.util.WebClientUtil;
 
 public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, ProcessedManager>> {
-	
+
 	private static final String MANAGER_PROFILE_URL = "https://ppm.powerplaymanager.com/en/manager-profile.html?data=";
-	
+
 	private static final Logger LOGGER = LoggerFactory.getLogger(FetchReadProcessManagerPageTask.class);
-	
+
 	private long managerId;
-	
+
 	private Configuration configuration;
-	
+
 	private LocalDateTime appStartTime;
-	
+
 	public FetchReadProcessManagerPageTask(Configuration configuration, long managerId, LocalDateTime appStartTime) {
 		this.configuration = configuration;
 		this.managerId = managerId;
 		this.appStartTime = appStartTime;
 	}
-	
+
 	@Override
 	public Entry<Long, ProcessedManager> call() {
 		try {
@@ -50,16 +50,13 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 			Manager manager = ManagerReader.readManagerInfo(managerPage);
 			ProcessedManager processedManager = new ProcessedManager(manager);
 			if (isIgnorable(manager)) {
-//				ignoredManagerSet.add(managerId);
 				processedManager.setIgnorable(true);
 			} else if (applyManagerFilters(manager)) {
-//				filteredManagers.add(manager);
 				processedManager.setFilterable(true);
 				processedManager.setFilterableTeams(new HashSet<>());
 				for (Team team : manager.getTeams()) {
 					TeamReader.readTeamInfo(team, client.getPage(team.getUrl()));
 					if (applyTeamFilters(team)) {
-//						filteredTeams.get(team.getSport()).add(team);
 						processedManager.getFilterableTeams().add(team);
 					}
 					Thread.sleep(configuration.getMillisecondsBetweenPageLoads());
@@ -72,7 +69,7 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 			return new AbstractMap.SimpleEntry<Long, ProcessedManager>(managerId, null);
 		}
 	}
-	
+
 	/**
 	 * Manager is ignorable when he is blocked or when he has no recent logins.
 	 * 
@@ -81,21 +78,21 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 	 */
 	private boolean isIgnorable(Manager manager) {
 		if (manager.isBlocked()) {
-			LOGGER.debug("Manager {} is blocked", manager.getId());
+			LOGGER.info("Manager {} is blocked", manager.getId());
 			return true;
 		}
 		if (CollectionUtils.isEmpty(manager.getRecentLogins())) {
-			LOGGER.debug("Manager {} doesnt have any recent logins", manager.getId());
+			LOGGER.info("Manager {} doesnt have any recent logins", manager.getId());
 			return true;
 		}
 		long lastLoginMonthsAgo = ChronoUnit.MONTHS.between(manager.getRecentLogins().get(0), this.appStartTime);
 		if (lastLoginMonthsAgo > this.configuration.getIgnoreListLastLoginMonthsThreshold()) {
-			LOGGER.debug("Manager {} logged in the last time {} months ago", manager.getId(), lastLoginMonthsAgo);
+			LOGGER.info("Manager {} logged in the last time {} months ago", manager.getId(), lastLoginMonthsAgo);
 			return true;
 		}
 		return false;
 	}
-	
+
 	private boolean applyManagerFilters(Manager manager) {
 		if (CollectionUtils.isEmpty(manager.getTeams())) {
 			LOGGER.debug("Manager {} has no teams", manager.getId());
@@ -140,7 +137,7 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 	private boolean applyTeamFilters(Team team) {
 		TeamFilterConfiguration teamFilterConfiguration = this.configuration.getTeamFilters().get(team.getSport());
 		if (teamFilterConfiguration == null) {
-			LOGGER.info("Manager {}'s team in {} is not in configuration - team ignored", team.getManager().getId(),
+			LOGGER.debug("Manager {}'s team in {} is not in configuration - team ignored", team.getManager().getId(),
 					team.getSport());
 			return false;
 		}
@@ -148,15 +145,14 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 			String teamStrengthAttribute = minStrengthConfigEntry.getKey();
 			Long teamStrength = team.getTeamStrength().get(teamStrengthAttribute);
 			if (teamStrength == null || teamStrength < minStrengthConfigEntry.getValue()) {
-				LOGGER.info("Manager {}'s team in {} does not match minimum strength criteria ({} {} < {})",
+				LOGGER.debug("Manager {}'s team in {} does not match minimum strength criteria ({} {} < {})",
 						team.getManager().getId(), team.getSport(), teamStrengthAttribute, teamStrength,
 						minStrengthConfigEntry.getValue());
 				return false;
 			}
 		}
-		LOGGER.info("Manager {}'s team in {} fits the criteria", team.getManager().getId(), team.getSport());
+		LOGGER.debug("Manager {}'s team in {} fits the criteria", team.getManager().getId(), team.getSport());
 		return true;
 	}
-	
 
 }

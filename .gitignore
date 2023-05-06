@@ -25,3 +25,5 @@ hs_err_pid*
 /.settings/
 /.classpath
 /.project
+/ppmScan_backup.db
+/IgnoredManagers_backup.json

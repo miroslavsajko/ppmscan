@@ -1,7 +1,5 @@
 package sk.ppmscan;
 
-import java.util.Set;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,9 +21,8 @@ public class Main {
 		try {
 			ConfigurationHolder configurationHolder = ConfigurationHolder.getInstance();
 			Configuration configuration = configurationHolder.getConfiguration();
-			Set<Long> ignoredManagers = configurationHolder.getIgnoredManagers();
-			PPMScannerApplication application = new PPMScannerApplication(configuration, ignoredManagers);
-			application.scan();
+			PPMScannerApplication application = new PPMScannerApplication();
+			application.scan(configuration);
 		} catch (Exception e) {
 			LOGGER.error("Error: {}", e);
 		}

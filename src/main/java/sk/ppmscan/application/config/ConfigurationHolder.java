@@ -5,7 +5,6 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.util.LinkedList;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,10 +12,6 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonWriter;
-
-import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
-import sk.ppmscan.application.importexport.json.IgnoredManagersJsonImportExport;
-import sk.ppmscan.application.importexport.sqlite.IgnoredManagersSQliteImportExport;
 
 public class ConfigurationHolder {
 
@@ -28,11 +23,8 @@ public class ConfigurationHolder {
 
 	private Configuration configuration;
 
-	private Set<Long> ignoredManagers;
-
 	private ConfigurationHolder() throws Exception {
 		this.configuration = validateConfiguration(readConfiguration());
-		this.ignoredManagers = readIgnoredManagers(this.configuration.getIgnoredManagersFormat());
 	}
 
 	private static Configuration readConfiguration() throws Exception {
@@ -60,20 +52,6 @@ public class ConfigurationHolder {
 		}
 		LOGGER.info("The operation took {} ms", System.currentTimeMillis() - startTimestamp);
 		return configuration;
-	}
-
-	private static Set<Long> readIgnoredManagers(IgnoredManagersFormat ignoredManagersFormat) throws Exception {
-		IgnoredManagersImportExport ignoredManagersImporter;
-		switch (ignoredManagersFormat) {
-		case SQLITE:
-			ignoredManagersImporter = new IgnoredManagersSQliteImportExport();
-			break;
-		case JSON:
-		default:
-			ignoredManagersImporter = new IgnoredManagersJsonImportExport();
-			break;
-		}
-		return ignoredManagersImporter.importData();
 	}
 
 	private static Configuration validateConfiguration(Configuration configuration) {
@@ -110,10 +88,6 @@ public class ConfigurationHolder {
 
 	public Configuration getConfiguration() {
 		return configuration;
-	}
-
-	public Set<Long> getIgnoredManagers() {
-		return ignoredManagers;
 	}
 
 }
