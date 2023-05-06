@@ -1,4 +1,4 @@
-# PPMScan
+teamFiltersteamFilters# PPMScan
 
 PPMScan is a tool for scanning managers in Power Play manager. It can find managers that are not so active, but still have active teams.
 
@@ -14,19 +14,19 @@ Describes the range of manager ids that will be scanned. The range is inclusive.
 
 You can specify also specific manager ids that will be scanned outside of your range.
 
-### requestedSports
+### teamFilters
 
 A list of sports in which a manager must have a team to be included in the result. If a manager doesn't have a team from requested sports, the manager is skipped. Allowed values are "HOCKEY", "SOCCER", "HANDBALL" and "BASKETBALL".
 
 ### lastLoginDaysRecentlyActiveThreshold
 
-Threshold for how a manager is considered inactive. If his last login was less than X days ago, he is considered inactive and is included in the result.
+Threshold for the last login date of a manager. If it was more than X days ago, he is considered inactive and he is included in the result.
 
 ### lastLoginDayDifferenceSumThreshold
 
-Threshold for calculating a manager's activity. For each login entry a difference between now and the login date is calculated and summed - if the sum is more than X, he is considered inactive and he is included in the result. This is a good indicator for users that are active irregularly
+Threshold for last 5 login dates of a manager. For each login entry we calculate how many days ago the manager logged in. Then we summarize these 5 numbers and if the sum is more than X, the manager is considered inactive and he is included in the result. This is a good indicator for users that are active irregularly.
 
-Example: Today is 20th day of a month, the manager logged in on 19th, 16th, 11th, 9th and 5th. The differences is 1, 4, 9, 11 and 15, it's sum is 40.    
+Example: Today is 20.01.2022, the manager logged in on 19.01., 16.01., 11.01., 09.01. and 05.01. The differences are 1, 4, 9, 11 and 15, it's sum is 40.    
 
 ### lastLoginCriteriaMatch
 
@@ -46,11 +46,11 @@ Format which is used to import and export the ignored managers. Possible values 
 
 ### sizeOfThreadPool
 
-How many threads will load pages in parallel.
+How many threads will be used to load pages in parallel.
 
 ### chunkSize
 
-How many managers are processed in one iteration, in other words, after how many managers a save of current state is triggered.
+How many managers are processed in one iteration, in other words, after how many managers a save of the current state is triggered.
 
 ### exportFormat
 
