@@ -1,0 +1,31 @@
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+	<session-factory>
+		<!-- Database connection properties -->
+		<property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
+		<property name="hibernate.connection.url">jdbc:mysql://localhost:3306/ppmscan</property>
+		<property name="hibernate.connection.username">root</property>
+		<property name="hibernate.connection.password">root</property>
+
+		<property name="hibernate.connection.CharSet">utf8</property>
+		<property name="hibernate.connection.characterEncoding">utf8</property>
+		<property name="hibernate.connection.useUnicode">true</property>
+
+		<!-- Hibernate dialect for your database -->
+		<property name="hibernate.dialect">org.hibernate.dialect.MySQL8Dialect</property>
+
+		<!-- Enable/disable logging -->
+		<property name="hibernate.show_sql">true</property>
+		<property name="hibernate.format_sql">true</property>
+
+		<property name="hibernate.hbm2ddl.auto">update</property>
+
+		<!-- Mapping files, entities, etc. -->
+		<!-- Add your entity classes here -->
+		<mapping class="sk.ppmscan.application.beans.Manager" />
+		<mapping class="sk.ppmscan.application.beans.Team" />
+		<mapping class="sk.ppmscan.application.beans.ScanRun" />
+	</session-factory>
+</hibernate-configuration>

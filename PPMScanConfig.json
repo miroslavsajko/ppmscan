@@ -1,7 +1,7 @@
 {
 	"millisecondsBetweenPageLoads": 2000,
-	"managerIdFrom": 2325400,
-	"managerIdTo": 2327200,
+	"managerIdFrom": 1,
+	"managerIdTo": 3000,
 	"managerIds": [],
 	"teamFilters": {
 		"HOCKEY": {

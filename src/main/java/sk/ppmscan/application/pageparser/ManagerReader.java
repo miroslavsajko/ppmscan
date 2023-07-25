@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections.CollectionUtils;
@@ -18,24 +20,26 @@ import com.gargoylesoftware.htmlunit.html.HtmlSpan;
 import com.gargoylesoftware.htmlunit.html.HtmlTable;
 
 import sk.ppmscan.application.beans.Manager;
+import sk.ppmscan.application.beans.ScanRun;
 import sk.ppmscan.application.beans.Sport;
 import sk.ppmscan.application.beans.Team;
 
 public final class ManagerReader {
-	
+
 	private static final Logger LOGGER = LoggerFactory.getLogger(ManagerReader.class);
-	
+
 	private ManagerReader() {
 	}
-	
-	public static Manager readManagerInfo(HtmlPage page) {
+
+	public static Manager readManagerInfo(HtmlPage page, ScanRun scanRun) {
 		Manager manager = new Manager();
 		manager.setUrl(page.getUrl().toExternalForm());
-		manager.setId(getManagerId(page));
+		manager.setScanRun(scanRun);
+		manager.setManagerId(getManagerId(page));
 		manager.setNickname(getNickname(page));
 		manager.setBlocked(getBlocked(page));
 		manager.setRecentLogins(getRecentLogins(page));
-		manager.setTeams(getTeams(page));
+		manager.setTeams(getTeams(page, scanRun));
 		manager.getTeams().forEach(team -> team.setManager(manager));
 		return manager;
 	}
@@ -78,16 +82,18 @@ public final class ManagerReader {
 		return null;
 	}
 
-	private static List<Team> getTeams(HtmlPage page) {
+	private static List<Team> getTeams(HtmlPage page, ScanRun scanRun) {
 		List<?> htmlTeams = page.getByXPath("//div[@class='team_info_profile gray_box']");
 		if (CollectionUtils.isEmpty(htmlTeams)) {
 			return Collections.emptyList();
 		}
-		return htmlTeams.stream().map(div -> (HtmlDivision) div).map(ManagerReader::getTeamFromDiv).collect(Collectors.toList());
+		return htmlTeams.stream().map(div -> (HtmlDivision) div).map(a -> getTeamFromDiv(a, scanRun))
+				.collect(Collectors.toList());
 	}
 
-	private static Team getTeamFromDiv(HtmlDivision teamDiv) {
+	private static Team getTeamFromDiv(HtmlDivision teamDiv, ScanRun scanRun) {
 		Team team = new Team();
+		team.setScanRun(scanRun);
 
 		HtmlDivision teamInfoDiv = teamDiv.getFirstByXPath("div[@class='team_info_info']");
 
@@ -103,7 +109,15 @@ public final class ManagerReader {
 		team.setTeamCountry(teamCountryImage.getAltAttribute());
 
 		HtmlAnchor teamNameAnchor = teamNameSpan.getFirstByXPath("*/a");
-		team.setUrl(teamNameAnchor.getHrefAttribute());
+		String url = teamNameAnchor.getHrefAttribute();
+		team.setUrl(url);
+
+		// extracts team id out of the url by finding a number between "=" and "-"
+		Matcher urlMatcher = Pattern.compile("=(.*?)-").matcher(url);
+		if (urlMatcher.find()) {
+			String hopefullyTeamID = urlMatcher.group(1);
+			team.setTeamId(Long.valueOf(hopefullyTeamID));
+		}
 		team.setName(teamNameAnchor.getTextContent());
 
 		HtmlSpan leagueSpan = teamInfoDetailSpans.get(1);
