@@ -42,7 +42,7 @@ Threshold for how many months the user must be inactive in order to be added to 
 
 ### ignoredManagersFormat
 
-Format which is used to import and export the ignored managers. Possible values are JSON and SQLITE.
+Format which is used to import and export the ignored managers. Possible values are "JSON", "SQLITE" and "HIBERNATE".
 
 ### sizeOfThreadPool
 
@@ -54,7 +54,7 @@ How many managers are processed in one iteration, in other words, after how many
 
 ### exportFormat
 
-Format in which found managers are exported. Accepted values are "JSON", "EXCEL" and "HTML".
+Format in which found managers are exported. Accepted values are "JSON", "EXCEL", "HTML" and "HIBERNATE".
 
 ## IgnoredManagers
 

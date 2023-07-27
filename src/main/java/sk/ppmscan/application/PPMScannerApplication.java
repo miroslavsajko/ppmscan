@@ -25,7 +25,6 @@ import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Root;
 
 import org.hibernate.Session;
-import org.hibernate.Transaction;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormatter;
 import org.joda.time.format.PeriodFormatterBuilder;
@@ -76,14 +75,13 @@ public class PPMScannerApplication {
 		long timeStampBefore = Calendar.getInstance().getTimeInMillis();
 		ExecutorService executorService = new PPMScannerThreadPoolExecutor(sizeOfThreadPool, managerIds.size());
 
-		FilteredTeamsExporter filteredTeamsExporter = configuration.getExportFormat()
-				.getFilteredTeamsExporter(this.appStartTime);
-
-		List<Callable<Entry<Long, ProcessedManager>>> tasks = new LinkedList<Callable<Entry<Long, ProcessedManager>>>();
-
 		ScanRun scanRun = new ScanRun();
 		scanRun.setScanTime(appStartTime);
 		scanRun.setManagers(filteredManagers);
+
+		FilteredTeamsExporter filteredTeamsExporter = configuration.getExportFormat().getFilteredTeamsExporter();
+
+		List<Callable<Entry<Long, ProcessedManager>>> tasks = new LinkedList<Callable<Entry<Long, ProcessedManager>>>();
 
 		for (int i = 0; i < managerIds.size();) {
 
@@ -121,24 +119,24 @@ public class PPMScannerApplication {
 				LOGGER.info("Found {} teams in {}", filteredTeamEntry.getValue().size(), filteredTeamEntry.getKey());
 			}
 
-			filteredTeamsExporter.exportData(filteredTeams);
+			filteredTeamsExporter.exportData(scanRun);
 
-			Session session = HibernateUtil.getSessionFactory().openSession();
-
-			Transaction tx = null;
-			try {
-				tx = session.beginTransaction();
-				session.saveOrUpdate(scanRun);
-				tx.commit();
-			} catch (Exception e) {
-				if (tx != null) {
-					tx.rollback();
-				}
-				LOGGER.error("Error during database communication!");
-				throw e;
-			} finally {
-				session.close();
-			}
+//			Session session = HibernateUtil.getSessionFactory().openSession();
+//
+//			Transaction tx = null;
+//			try {
+//				tx = session.beginTransaction();
+//				session.saveOrUpdate(scanRun);
+//				tx.commit();
+//			} catch (Exception e) {
+//				if (tx != null) {
+//					tx.rollback();
+//				}
+//				LOGGER.error("Error during database communication!");
+//				throw e;
+//			} finally {
+//				session.close();
+//			}
 
 			i += configuration.getChunkSize();
 		}
@@ -163,11 +161,10 @@ public class PPMScannerApplication {
 		CriteriaBuilder cb = session.getCriteriaBuilder();
 		CriteriaQuery<ScanRun> criteriaQuery = cb.createQuery(ScanRun.class);
 		Root<ScanRun> root = criteriaQuery.from(ScanRun.class);
-		criteriaQuery.select(root)/* .where(cb.equal(root.get("columnName"), value)) */;
+		criteriaQuery.select(root);
 		List<ScanRun> result = session.createQuery(criteriaQuery).getResultList();
 
 		LOGGER.info("There was already {} scan runs", result.size());
-		session.close();
 
 	}
 

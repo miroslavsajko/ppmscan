@@ -27,5 +27,6 @@
 		<mapping class="sk.ppmscan.application.beans.Manager" />
 		<mapping class="sk.ppmscan.application.beans.Team" />
 		<mapping class="sk.ppmscan.application.beans.ScanRun" />
+		<mapping class="sk.ppmscan.application.beans.IgnoredManager" />
 	</session-factory>
 </hibernate-configuration>

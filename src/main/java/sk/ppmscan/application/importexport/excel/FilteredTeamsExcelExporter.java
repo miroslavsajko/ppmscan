@@ -7,9 +7,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.ss.usermodel.Cell;
@@ -23,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import sk.ppmscan.application.beans.Manager;
+import sk.ppmscan.application.beans.ScanRun;
 import sk.ppmscan.application.beans.Sport;
 import sk.ppmscan.application.beans.Team;
 import sk.ppmscan.application.importexport.FilteredTeamsExporter;
@@ -31,17 +33,15 @@ public class FilteredTeamsExcelExporter implements FilteredTeamsExporter {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(FilteredTeamsExcelExporter.class);
 
-	private LocalDateTime now;
-
-	public FilteredTeamsExcelExporter(LocalDateTime now) {
-		this.now = now;
-	}
-
 	@Override
-	public void exportData(Map<Sport, Set<Team>> teams) throws IOException {
+	public void exportData(ScanRun scanRun) throws IOException {
+		
+		Map<Sport, List<Team>> teams = scanRun.getManagers().stream().map(manager -> manager.getTeams())
+				.flatMap(List::stream).collect(Collectors.groupingBy(Team::getSport));
+		
 		XSSFWorkbook workbook = new XSSFWorkbook();
 
-		for (Entry<Sport, Set<Team>> filteredEntry : teams.entrySet()) {
+		for (Entry<Sport, List<Team>> filteredEntry : teams.entrySet()) {
 			writeOutputSportToExcelFile(workbook, filteredEntry.getKey(), filteredEntry.getValue());
 		}
 
@@ -51,7 +51,7 @@ public class FilteredTeamsExcelExporter implements FilteredTeamsExporter {
 				.appendValue(ChronoField.SECOND_OF_MINUTE, 2).toFormatter();
 
 		String outputFilename = new StringBuilder().append("ppmInactiveManagers-")
-				.append(this.now.format(dateTimeFormatter)).append(".xlsx").toString();
+				.append(scanRun.getScanTime().format(dateTimeFormatter)).append(".xlsx").toString();
 
 		LOGGER.info("Writing out the result to file {}", outputFilename);
 		File outputExcelFile = new File(outputFilename);
@@ -63,7 +63,7 @@ public class FilteredTeamsExcelExporter implements FilteredTeamsExporter {
 
 	}
 
-	private void writeOutputSportToExcelFile(XSSFWorkbook workbook, Sport sport, Set<Team> teams) {
+	private void writeOutputSportToExcelFile(XSSFWorkbook workbook, Sport sport, List<Team> teams) {
 		XSSFSheet sheet = workbook.createSheet(sport.toString());
 		XSSFCreationHelper creationHelper = workbook.getCreationHelper();
 
@@ -133,7 +133,7 @@ public class FilteredTeamsExcelExporter implements FilteredTeamsExporter {
 	}
 
 	@Override
-	public Map<Sport, Set<Team>> importData() throws Exception {
+	public ScanRun importData() throws Exception {
 		throw new Exception("Not supported");
 	}
 

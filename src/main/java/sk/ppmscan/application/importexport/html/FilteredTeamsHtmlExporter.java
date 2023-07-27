@@ -8,14 +8,16 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import sk.ppmscan.application.beans.ScanRun;
 import sk.ppmscan.application.beans.Sport;
 import sk.ppmscan.application.beans.Team;
 import sk.ppmscan.application.importexport.FilteredTeamsExporter;
@@ -24,21 +26,18 @@ public class FilteredTeamsHtmlExporter implements FilteredTeamsExporter {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(FilteredTeamsHtmlExporter.class);
 
-	private LocalDateTime now;
-
-	public FilteredTeamsHtmlExporter(LocalDateTime now) {
-		this.now = now;
-	}
-
 	@Override
-	public void exportData(Map<Sport, Set<Team>> teams) throws IOException {
+	public void exportData(ScanRun scanRun) throws IOException {
 		DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder().append(DateTimeFormatter.ISO_DATE)
 				.appendLiteral("T").appendValue(ChronoField.HOUR_OF_DAY, 2).appendLiteral("-")
 				.appendValue(ChronoField.MINUTE_OF_HOUR, 2).appendLiteral("-")
 				.appendValue(ChronoField.SECOND_OF_MINUTE, 2).toFormatter();
 
 		String outputFilename = new StringBuilder().append("ppmInactiveManagers-")
-				.append(this.now.format(dateTimeFormatter)).append(".html").toString();
+				.append(scanRun.getScanTime().format(dateTimeFormatter)).append(".html").toString();
+
+		Map<Sport, List<Team>> teams = scanRun.getManagers().stream().map(manager -> manager.getTeams())
+				.flatMap(List::stream).collect(Collectors.groupingBy(Team::getSport));
 
 		LOGGER.info("Writing out the result to file: {}", outputFilename);
 
@@ -65,7 +64,7 @@ public class FilteredTeamsHtmlExporter implements FilteredTeamsExporter {
 
 		writer.write("<body>");
 
-		for (Entry<Sport, Set<Team>> entry : teams.entrySet()) {
+		for (Entry<Sport, List<Team>> entry : teams.entrySet()) {
 			writer.write("<div><span class=\"bold\">Sport: " + entry.getKey().toString() + "</span>");
 			writer.write("<br/>");
 
@@ -145,7 +144,7 @@ public class FilteredTeamsHtmlExporter implements FilteredTeamsExporter {
 	}
 
 	@Override
-	public Map<Sport, Set<Team>> importData() throws Exception {
+	public ScanRun importData() throws Exception {
 		throw new Exception("Not supported");
 	}
 

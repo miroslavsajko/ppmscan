@@ -24,8 +24,8 @@
 	"lastLoginDaysRecentlyActiveThreshold": 2,
 	"lastLoginCriteriaMatch": 1,
 	"ignoreListLastLoginMonthsThreshold": 3,
-	"ignoredManagersFormat": "SQLITE",
+	"ignoredManagersFormat": "HIBERNATE",
 	"sizeOfThreadPool": 9,
 	"chunkSize": 50,
-	"exportFormat": "HTML"
+	"exportFormat": "HIBERNATE"
 }

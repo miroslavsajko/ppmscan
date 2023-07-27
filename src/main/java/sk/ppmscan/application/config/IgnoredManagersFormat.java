@@ -1,6 +1,7 @@
 package sk.ppmscan.application.config;
 
 import sk.ppmscan.application.importexport.IgnoredManagersImportExport;
+import sk.ppmscan.application.importexport.hibernate.IgnoredManagersHibernateImportExport;
 import sk.ppmscan.application.importexport.json.IgnoredManagersJsonImportExport;
 import sk.ppmscan.application.importexport.sqlite.IgnoredManagersSQliteImportExport;
 
@@ -8,7 +9,9 @@ public enum IgnoredManagersFormat {
 
 	JSON(new IgnoredManagersJsonImportExport()),
 	
-	SQLITE(new IgnoredManagersSQliteImportExport());
+	SQLITE(new IgnoredManagersSQliteImportExport()),
+	
+	HIBERNATE(new IgnoredManagersHibernateImportExport());
 
 	private IgnoredManagersImportExport ignoredManagersImportExporter;
 	
