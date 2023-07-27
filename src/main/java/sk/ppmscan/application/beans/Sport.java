@@ -20,14 +20,13 @@ public enum Sport {
 		return divClass;
 	}
 
-	public static Sport getSportFromDivClass(String divClass) /*throws Exception*/ {
+	public static Sport getSportFromDivClass(String divClass) {
 		for (Sport sportType : values()) {
 			if (sportType.getDivClass().equals(divClass)) {
 				return sportType;
 			}
 		}
 		return null;
-//		throw new Exception("Unknown div class");
 	}
 
 }

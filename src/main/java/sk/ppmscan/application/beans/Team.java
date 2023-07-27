@@ -3,72 +3,29 @@ package sk.ppmscan.application.beans;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.persistence.CollectionTable;
-import javax.persistence.Column;
-import javax.persistence.ElementCollection;
-import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
-import javax.persistence.MapKeyColumn;
-import javax.persistence.Table;
-import javax.persistence.UniqueConstraint;
-
-@Entity
-@Table(name = "team", uniqueConstraints = @UniqueConstraint(columnNames = { Team.COLUMN_NAME_TEAM_ID, "sport", ScanRun.COLUMN_NAME_SCAN_RUN_ID }))
 public class Team implements Comparable<Team> {
 	
-	public static final String COLUMN_NAME_TEAM_ID = "team_id";
-
-	/**
-	 * Id of the row in the database. Always unique.
-	 */
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "team_pk", insertable = false, updatable = false)
-	private long id;
-
 	/**
 	 * Id of the team.
 	 */
-	@Column(name = COLUMN_NAME_TEAM_ID, nullable = false)
 	private Long teamId;
 
-	@ManyToOne
-	@JoinColumn(name = ScanRun.COLUMN_NAME_SCAN_RUN_ID)
 	private ScanRun scanRun;
 
-	@Column(nullable = false)
-	@Enumerated(EnumType.STRING)
 	private Sport sport;
 
-	@Column(name = "name", nullable = false)
 	private String name;
 
-	@Column(name = "teamCountry", nullable = false)
 	private String teamCountry;
 
-	@Column(name = "league", nullable = false)
 	private String league;
 
-	@Column(name = "leagueCountry", nullable = false)
 	private String leagueCountry;
 
-	@Column(name = "url", nullable = false)
 	private String url;
 
-	@ElementCollection
-	@CollectionTable(name = "team_strengths" )
-	@MapKeyColumn(name = "strength_type", length = 30) // Specify the column name for the map key
-	@Column(name = "strength_value") // Specify the column name for the map value
 	private Map<String, Long> teamStrength;
 
-	@ManyToOne()
-	@JoinColumn(name = "manager_pk")
 	private Manager manager;
 
 	public Map<String, Long> getTeamStrength() {
@@ -125,14 +82,6 @@ public class Team implements Comparable<Team> {
 
 	public void setUrl(String url) {
 		this.url = url;
-	}
-
-	public long getId() {
-		return id;
-	}
-
-	public void setId(long id) {
-		this.id = id;
 	}
 
 	public Long getTeamId() {

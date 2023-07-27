@@ -17,7 +17,7 @@ import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import sk.ppmscan.application.beans.Manager;
 import sk.ppmscan.application.beans.ScanRun;
 import sk.ppmscan.application.beans.Team;
-import sk.ppmscan.application.config.Configuration;
+import sk.ppmscan.application.config.PPMScanConfiguration;
 import sk.ppmscan.application.config.TeamFilterConfiguration;
 import sk.ppmscan.application.pageparser.ManagerReader;
 import sk.ppmscan.application.pageparser.TeamReader;
@@ -31,11 +31,11 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 
 	private long managerId;
 
-	private Configuration configuration;
+	private PPMScanConfiguration configuration;
 
 	private ScanRun scanRun;
 
-	public FetchReadProcessManagerPageTask(Configuration configuration, long managerId, ScanRun scanRun) {
+	public FetchReadProcessManagerPageTask(PPMScanConfiguration configuration, long managerId, ScanRun scanRun) {
 		this.configuration = configuration;
 		this.managerId = managerId;
 		this.scanRun = scanRun;
