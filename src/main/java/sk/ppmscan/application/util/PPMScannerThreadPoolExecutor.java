@@ -8,11 +8,11 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import sk.ppmscan.application.PPMScannerApplication;
+import sk.ppmscan.application.PPMScanner;
 
 public class PPMScannerThreadPoolExecutor extends ThreadPoolExecutor {
 	
-	private static final Logger LOGGER = LoggerFactory.getLogger(PPMScannerApplication.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(PPMScanner.class);
 	
 	private DecimalFormat FORMAT = new DecimalFormat("0.0");
 	

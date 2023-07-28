@@ -15,8 +15,9 @@ import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 
 import sk.ppmscan.application.beans.Manager;
+import sk.ppmscan.application.beans.ScanRun;
 import sk.ppmscan.application.beans.Team;
-import sk.ppmscan.application.config.Configuration;
+import sk.ppmscan.application.config.PPMScanConfiguration;
 import sk.ppmscan.application.config.TeamFilterConfiguration;
 import sk.ppmscan.application.pageparser.ManagerReader;
 import sk.ppmscan.application.pageparser.TeamReader;
@@ -30,14 +31,14 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 
 	private long managerId;
 
-	private Configuration configuration;
+	private PPMScanConfiguration configuration;
 
-	private LocalDateTime appStartTime;
+	private ScanRun scanRun;
 
-	public FetchReadProcessManagerPageTask(Configuration configuration, long managerId, LocalDateTime appStartTime) {
+	public FetchReadProcessManagerPageTask(PPMScanConfiguration configuration, long managerId, ScanRun scanRun) {
 		this.configuration = configuration;
 		this.managerId = managerId;
-		this.appStartTime = appStartTime;
+		this.scanRun = scanRun;
 	}
 
 	@Override
@@ -47,7 +48,7 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 			HtmlPage managerPage;
 			managerPage = client.getPage(MANAGER_PROFILE_URL + managerId);
 			Thread.sleep(configuration.getMillisecondsBetweenPageLoads());
-			Manager manager = ManagerReader.readManagerInfo(managerPage);
+			Manager manager = ManagerReader.readManagerInfo(managerPage, scanRun);
 			ProcessedManager processedManager = new ProcessedManager(manager);
 			if (isIgnorable(manager)) {
 				processedManager.setIgnorable(true);
@@ -78,16 +79,16 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 	 */
 	private boolean isIgnorable(Manager manager) {
 		if (manager.isBlocked()) {
-			LOGGER.info("Manager {} is blocked", manager.getId());
+			LOGGER.info("Manager {} is blocked", manager.getManagerId());
 			return true;
 		}
 		if (CollectionUtils.isEmpty(manager.getRecentLogins())) {
-			LOGGER.info("Manager {} doesnt have any recent logins", manager.getId());
+			LOGGER.info("Manager {} doesnt have any recent logins", manager.getManagerId());
 			return true;
 		}
-		long lastLoginMonthsAgo = ChronoUnit.MONTHS.between(manager.getRecentLogins().get(0), this.appStartTime);
+		long lastLoginMonthsAgo = ChronoUnit.MONTHS.between(manager.getRecentLogins().get(0), this.scanRun.getScanTime());
 		if (lastLoginMonthsAgo > this.configuration.getIgnoreListLastLoginMonthsThreshold()) {
-			LOGGER.info("Manager {} logged in the last time {} months ago", manager.getId(), lastLoginMonthsAgo);
+			LOGGER.info("Manager {} logged in the last time {} months ago", manager.getManagerId(), lastLoginMonthsAgo);
 			return true;
 		}
 		return false;
@@ -95,7 +96,7 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 
 	private boolean applyManagerFilters(Manager manager) {
 		if (CollectionUtils.isEmpty(manager.getTeams())) {
-			LOGGER.debug("Manager {} has no teams", manager.getId());
+			LOGGER.debug("Manager {} has no teams", manager.getManagerId());
 			return false;
 		}
 
@@ -103,41 +104,41 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 
 		LocalDateTime mostRecentLogin = manager.getRecentLogins().get(0);
 
-		long mostRecentLoginDaysAgo = ChronoUnit.DAYS.between(mostRecentLogin, this.appStartTime);
+		long mostRecentLoginDaysAgo = ChronoUnit.DAYS.between(mostRecentLogin, this.scanRun.getScanTime());
 		if (mostRecentLoginDaysAgo < configuration.getLastLoginDaysRecentlyActiveThreshold()) {
-			LOGGER.debug("Manager {} was active just recently", manager.getId());
+			LOGGER.debug("Manager {} was active just recently", manager.getManagerId());
 		} else {
 			recentLoginFilterCriteriaMatchCount++;
 		}
 
 		long dayDifferenceBuffer = 0;
 		for (int i = 0; i < manager.getRecentLogins().size() - 1; i++) {
-			long loginDayDifference = ChronoUnit.DAYS.between(manager.getRecentLogins().get(i), this.appStartTime);
+			long loginDayDifference = ChronoUnit.DAYS.between(manager.getRecentLogins().get(i), this.scanRun.getScanTime());
 			dayDifferenceBuffer += loginDayDifference;
 		}
 
 		if (dayDifferenceBuffer < configuration.getLastLoginDayDifferenceSumThreshold()) {
 			// the user is probably regularly active
-			LOGGER.debug("Manager {} is probably regularly active, dayDifferenceBuffer: {}", manager.getId(),
+			LOGGER.debug("Manager {} is probably regularly active, dayDifferenceBuffer: {}", manager.getManagerId(),
 					dayDifferenceBuffer);
 		} else {
 			recentLoginFilterCriteriaMatchCount++;
 		}
 
 		if (recentLoginFilterCriteriaMatchCount < this.configuration.getLastLoginCriteriaMatch()) {
-			LOGGER.debug("Manager {} does not match enough criteria ({}/{})", manager.getId(),
+			LOGGER.debug("Manager {} does not match enough criteria ({}/{})", manager.getManagerId(),
 					recentLoginFilterCriteriaMatchCount, this.configuration.getLastLoginCriteriaMatch());
 			return false;
 		}
 
-		LOGGER.info("Manager {} with {} teams fits the manager criteria", manager.getId(), manager.getTeams().size());
+		LOGGER.info("Manager {} with {} teams fits the manager criteria", manager.getManagerId(), manager.getTeams().size());
 		return true;
 	}
 
 	private boolean applyTeamFilters(Team team) {
 		TeamFilterConfiguration teamFilterConfiguration = this.configuration.getTeamFilters().get(team.getSport());
 		if (teamFilterConfiguration == null) {
-			LOGGER.debug("Manager {}'s team in {} is not in configuration - team ignored", team.getManager().getId(),
+			LOGGER.debug("Manager {}'s team in {} is not in configuration - team ignored", team.getManager().getManagerId(),
 					team.getSport());
 			return false;
 		}
@@ -146,12 +147,12 @@ public class FetchReadProcessManagerPageTask implements Callable<Entry<Long, Pro
 			Long teamStrength = team.getTeamStrength().get(teamStrengthAttribute);
 			if (teamStrength == null || teamStrength < minStrengthConfigEntry.getValue()) {
 				LOGGER.debug("Manager {}'s team in {} does not match minimum strength criteria ({} {} < {})",
-						team.getManager().getId(), team.getSport(), teamStrengthAttribute, teamStrength,
+						team.getManager().getManagerId(), team.getSport(), teamStrengthAttribute, teamStrength,
 						minStrengthConfigEntry.getValue());
 				return false;
 			}
 		}
-		LOGGER.debug("Manager {}'s team in {} fits the criteria", team.getManager().getId(), team.getSport());
+		LOGGER.debug("Manager {}'s team in {} fits the criteria", team.getManager().getManagerId(), team.getSport());
 		return true;
 	}
 

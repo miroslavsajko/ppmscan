@@ -27,3 +27,4 @@ hs_err_pid*
 /.project
 /ppmScan_backup.db
 /IgnoredManagers_backup.json
+/.factorypath
