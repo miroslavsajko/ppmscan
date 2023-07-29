@@ -7,8 +7,6 @@ public class Manager {
 
 	private Long managerId;
 
-	private ScanRun scanRun;
-
 	/**
 	 * True if the user is blocked. Transient means it won't be serialized.
 	 */
@@ -68,14 +66,6 @@ public class Manager {
 
 	public void setManagerId(Long managerId) {
 		this.managerId = managerId;
-	}
-
-	public ScanRun getScanRun() {
-		return scanRun;
-	}
-
-	public void setScanRun(ScanRun scanRun) {
-		this.scanRun = scanRun;
 	}
 
 }

@@ -28,11 +28,11 @@ import org.slf4j.LoggerFactory;
 import sk.ppmscan.application.beans.Manager;
 import sk.ppmscan.application.beans.ScanRun;
 import sk.ppmscan.application.beans.Sport;
-import sk.ppmscan.application.beans.Team;
 import sk.ppmscan.application.config.PPMScanConfiguration;
+import sk.ppmscan.application.filter.ManagerTeamFilterUtility;
 import sk.ppmscan.application.importexport.IgnoredManagersDao;
 import sk.ppmscan.application.importexport.ScanRunExporter;
-import sk.ppmscan.application.processor.FetchReadProcessManagerPageTask;
+import sk.ppmscan.application.processor.FetchManagerTask;
 import sk.ppmscan.application.processor.ProcessedManager;
 import sk.ppmscan.application.util.PPMScannerThreadPoolExecutor;
 
@@ -51,20 +51,23 @@ public class PPMScanner {
 		this.appStartTime = LocalDateTime.now();
 	}
 
-	public void scan(PPMScanConfiguration configuration, ScanRunExporter filteredTeamsExporter, IgnoredManagersDao ignoredManagersImportExport) throws Exception {
+	public void scan(PPMScanConfiguration configuration, ScanRunExporter scanRunExporter,
+			IgnoredManagersDao ignoredManagersDao) throws Exception {
 
-		List<Long> managerIds = getManagerIds(configuration, ignoredManagersImportExport);
+		List<Long> managerIds = getManagerIds(configuration, ignoredManagersDao);
 
 		List<Manager> filteredManagers = Collections.synchronizedList(new LinkedList<>());
-		Map<Sport, Set<Team>> filteredTeams = Collections.synchronizedMap(new HashMap<Sport, Set<Team>>());
-		configuration.getTeamFilters().keySet()
-				.forEach(sport -> filteredTeams.put(sport, Collections.synchronizedSet(new TreeSet<>())));
+
+		Map<Sport, Integer> filteredTeamsCount = Collections.synchronizedMap(new HashMap<Sport, Integer>());
+		configuration.getTeamFilters().keySet().forEach(sport -> filteredTeamsCount.put(sport, 0));
 
 		int sizeOfThreadPool = configuration.getSizeOfThreadPool();
 		LOGGER.info("{} threads will be used", sizeOfThreadPool);
 		long timeStampBefore = Calendar.getInstance().getTimeInMillis();
 		ExecutorService executorService = new PPMScannerThreadPoolExecutor(sizeOfThreadPool, managerIds.size());
-		
+
+		ManagerTeamFilterUtility filterUtility = new ManagerTeamFilterUtility(configuration, appStartTime);
+
 		ScanRun scanRun = new ScanRun();
 		scanRun.setScanTime(appStartTime);
 		scanRun.setManagers(filteredManagers);
@@ -75,7 +78,9 @@ public class PPMScanner {
 
 			for (int j = i; j < i + configuration.getChunkSize() && j < managerIds.size(); j++) {
 				Long managerId = managerIds.get(j);
-				tasks.add(new FetchReadProcessManagerPageTask(configuration, managerId, scanRun));
+
+				tasks.add(new FetchManagerTask(configuration.getMillisecondsBetweenPageLoads(), filterUtility,
+						configuration.getTeamFilters().keySet(), managerId));
 			}
 			Set<Long> newIgnoredManagers = Collections.synchronizedSortedSet(new TreeSet<Long>());
 
@@ -89,9 +94,8 @@ public class PPMScanner {
 						newIgnoredManagers.add(managerId);
 					} else if (processedManager.isFilterable()) {
 						filteredManagers.add(processedManager.getManager());
-						for (Team team : processedManager.getFilterableTeams()) {
-							filteredTeams.get(team.getSport()).add(team);
-						}
+						processedManager.getManager().getTeams().forEach(team -> filteredTeamsCount.put(team.getSport(),
+								filteredTeamsCount.get(team.getSport()) + 1));
 					}
 				}
 			}
@@ -100,14 +104,14 @@ public class PPMScanner {
 
 			LOGGER.info("Added {} new managers to the ignore list", newIgnoredManagers.size());
 
-			ignoredManagersImportExport.exportData(newIgnoredManagers);
+			ignoredManagersDao.exportData(newIgnoredManagers);
 
 			LOGGER.info("Found {} managers in this run", filteredManagers.size());
-			for (Entry<Sport, Set<Team>> filteredTeamEntry : filteredTeams.entrySet()) {
-				LOGGER.info("Found {} teams in {}", filteredTeamEntry.getValue().size(), filteredTeamEntry.getKey());
+			for (Entry<Sport, Integer> filteredTeamEntry : filteredTeamsCount.entrySet()) {
+				LOGGER.info("Found {} teams in {}", filteredTeamEntry.getValue(), filteredTeamEntry.getKey());
 			}
 
-			filteredTeamsExporter.exportData(scanRun);
+			scanRunExporter.exportData(scanRun);
 
 			i += configuration.getChunkSize();
 		}
@@ -124,12 +128,10 @@ public class PPMScanner {
 		executorService.awaitTermination(5, TimeUnit.SECONDS);
 		LOGGER.info("{} tasks never finished because of termination", executorService.shutdownNow().size());
 
-		
-
 	}
 
-	private List<Long> getManagerIds(PPMScanConfiguration configuration,
-			IgnoredManagersDao ignoredManagersImportExport) throws Exception {
+	private List<Long> getManagerIds(PPMScanConfiguration configuration, IgnoredManagersDao ignoredManagersImportExport)
+			throws Exception {
 		List<Long> managerIds = configuration.getManagerIds().stream().collect(Collectors.toList());
 
 		for (long managerId = configuration.getManagerIdFrom(); managerId <= configuration

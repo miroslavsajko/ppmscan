@@ -12,20 +12,26 @@ import sk.ppmscan.application.beans.Team;
 
 public class TeamReader {
 
-	//private static final Logger LOGGER = LoggerFactory.getLogger(TeamReader.class);
-
 	private TeamReader() {
 	}
 
-	public static Team readTeamInfo(Team team, HtmlPage page) {
-		team.setTeamStrength(getTeamStrengths(page));
+	/**
+	 * Fills in team strengths, all other values are read from the manager page.
+	 * 
+	 * @param team     team object
+	 * @param teamPage fetched page of the team
+	 * @return team with filled in team strengths
+	 */
+	public static Team readTeamInfo(Team team, HtmlPage teamPage) {
+		team.setTeamStrength(getTeamStrengths(teamPage));
 		return team;
 	}
 
 	@SuppressWarnings("unchecked")
 	private static Map<String, Long> getTeamStrengths(HtmlPage page) {
 		HtmlTable teamStrengthTable = page.getFirstByXPath("//table[@class='table_profile']");
-		List<HtmlTableRow> rows = (List<HtmlTableRow>) page.getByXPath(teamStrengthTable.getCanonicalXPath()+"//tbody//tr[not(@style)]");
+		List<HtmlTableRow> rows = (List<HtmlTableRow>) page
+				.getByXPath(teamStrengthTable.getCanonicalXPath() + "//tbody//tr[not(@style)]");
 
 		Map<String, Long> teamStrengthMap = new HashMap<>();
 		for (HtmlTableRow htmlRow : rows) {

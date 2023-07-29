@@ -10,8 +10,6 @@ public class Team implements Comparable<Team> {
 	 */
 	private Long teamId;
 
-	private ScanRun scanRun;
-
 	private Sport sport;
 
 	private String name;
@@ -92,14 +90,6 @@ public class Team implements Comparable<Team> {
 		this.teamId = teamId;
 	}
 
-	public ScanRun getScanRun() {
-		return scanRun;
-	}
-
-	public void setScanRun(ScanRun scanRun) {
-		this.scanRun = scanRun;
-	}
-
 	public Sport getSport() {
 		return sport;
 	}
@@ -109,8 +99,15 @@ public class Team implements Comparable<Team> {
 	}
 
 	@Override
+	public int compareTo(Team o) {
+		// comparing is only for the insertion in a map, where teams are split between
+		// sports, so this is enough
+		return this.getTeamId().compareTo(o.getTeamId());
+	}
+
+	@Override
 	public int hashCode() {
-		return Objects.hash(scanRun.getScanTime(), sport, teamId);
+		return Objects.hash(sport, teamId);
 	}
 
 	@Override
@@ -122,14 +119,7 @@ public class Team implements Comparable<Team> {
 		if (getClass() != obj.getClass())
 			return false;
 		Team other = (Team) obj;
-		return Objects.equals(scanRun.getScanTime(), other.scanRun.getScanTime()) && sport == other.sport && Objects.equals(teamId, other.teamId);
-	}
-
-	@Override
-	public int compareTo(Team o) {
-		// comparing is only for the insertion in a map, where teams are split between
-		// sports, so this is enough
-		return this.getTeamId().compareTo(o.getTeamId());
+		return sport == other.sport && Objects.equals(teamId, other.teamId);
 	}
 
 }

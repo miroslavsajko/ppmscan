@@ -2,6 +2,7 @@ package sk.ppmscan.application.beans;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 public class ScanRun {
 
@@ -36,6 +37,23 @@ public class ScanRun {
 
 	public void setManagers(List<Manager> managers) {
 		this.managers = managers;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(managers, scanTime);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		ScanRun other = (ScanRun) obj;
+		return Objects.equals(managers, other.managers) && Objects.equals(scanTime, other.scanTime);
 	}
 
 }

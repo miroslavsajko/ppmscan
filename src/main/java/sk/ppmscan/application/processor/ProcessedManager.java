@@ -1,9 +1,6 @@
 package sk.ppmscan.application.processor;
 
-import java.util.Set;
-
 import sk.ppmscan.application.beans.Manager;
-import sk.ppmscan.application.beans.Team;
 
 public class ProcessedManager {
 	
@@ -19,11 +16,6 @@ public class ProcessedManager {
 	 */
 	private boolean filterable;
 	
-	/**
-	 * the manager's teams fit the filters.
-	 */
-	private Set<Team> filterableTeams;
-
 	public ProcessedManager(Manager manager) {
 		super();
 		this.manager = manager;
@@ -51,14 +43,6 @@ public class ProcessedManager {
 
 	public void setFilterable(boolean filterable) {
 		this.filterable = filterable;
-	}
-
-	public Set<Team> getFilterableTeams() {
-		return filterableTeams;
-	}
-
-	public void setFilterableTeams(Set<Team> filterableTeams) {
-		this.filterableTeams = filterableTeams;
 	}
 
 }

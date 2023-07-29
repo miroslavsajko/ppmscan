@@ -20,7 +20,6 @@ import com.gargoylesoftware.htmlunit.html.HtmlSpan;
 import com.gargoylesoftware.htmlunit.html.HtmlTable;
 
 import sk.ppmscan.application.beans.Manager;
-import sk.ppmscan.application.beans.ScanRun;
 import sk.ppmscan.application.beans.Sport;
 import sk.ppmscan.application.beans.Team;
 
@@ -31,15 +30,14 @@ public final class ManagerReader {
 	private ManagerReader() {
 	}
 
-	public static Manager readManagerInfo(HtmlPage page, ScanRun scanRun) {
+	public static Manager readManagerInfo(HtmlPage page) {
 		Manager manager = new Manager();
 		manager.setUrl(page.getUrl().toExternalForm());
-		manager.setScanRun(scanRun);
 		manager.setManagerId(getManagerId(page));
 		manager.setNickname(getNickname(page));
 		manager.setBlocked(getBlocked(page));
 		manager.setRecentLogins(getRecentLogins(page));
-		manager.setTeams(getTeams(page, scanRun));
+		manager.setTeams(getTeams(page));
 		manager.getTeams().forEach(team -> team.setManager(manager));
 		return manager;
 	}
@@ -82,18 +80,17 @@ public final class ManagerReader {
 		return null;
 	}
 
-	private static List<Team> getTeams(HtmlPage page, ScanRun scanRun) {
+	private static List<Team> getTeams(HtmlPage page) {
 		List<?> htmlTeams = page.getByXPath("//div[@class='team_info_profile gray_box']");
 		if (CollectionUtils.isEmpty(htmlTeams)) {
 			return Collections.emptyList();
 		}
-		return htmlTeams.stream().map(div -> (HtmlDivision) div).map(a -> getTeamFromDiv(a, scanRun))
+		return htmlTeams.stream().map(div -> (HtmlDivision) div).map(ManagerReader::getTeamFromDiv)
 				.collect(Collectors.toList());
 	}
 
-	private static Team getTeamFromDiv(HtmlDivision teamDiv, ScanRun scanRun) {
+	private static Team getTeamFromDiv(HtmlDivision teamDiv) {
 		Team team = new Team();
-		team.setScanRun(scanRun);
 
 		HtmlDivision teamInfoDiv = teamDiv.getFirstByXPath("div[@class='team_info_info']");
 
