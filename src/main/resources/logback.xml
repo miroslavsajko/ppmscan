@@ -9,6 +9,7 @@
 	</appender>
 
 	<appender name="file" class="ch.qos.logback.core.FileAppender">
+		<file>ppmscan.log</file>
 		<encoder>
 			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} \t %msg%n</pattern>
 		</encoder>
